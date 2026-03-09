@@ -26,35 +26,17 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Read CLAUDE.md
-        id: claude_md
-        run: |
-          if [ -f CLAUDE.md ]; then
-            echo "content<<HEREDOC_EOF" >> $GITHUB_OUTPUT
-            cat CLAUDE.md >> $GITHUB_OUTPUT
-            echo "HEREDOC_EOF" >> $GITHUB_OUTPUT
-          else
-            echo "content=No CLAUDE.md found." >> $GITHUB_OUTPUT
-          fi
-
       - name: Review PR
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           prompt: |
-            Review PR #${{ inputs.pr_number }} in ${{ inputs.repo }}.
+            REPO: ${{ inputs.repo }}
+            PR NUMBER: ${{ inputs.pr_number }}
 
-            ## Project conventions (from CLAUDE.md)
+            Review this pull request. Read CLAUDE.md for project conventions first.
 
-            ${{ steps.claude_md.outputs.content }}
-
-            ## Step 0: Read the PR
-
-            Run these two commands and read their output carefully:
-            1. gh pr diff ${{ inputs.pr_number }} --repo ${{ inputs.repo }}
-            2. gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json title,body
-
-            ## Step 1: Categorize every finding as BLOCKING or NIT
+            ## Categorize every finding as BLOCKING or NIT
 
             **BLOCKING** — the PR Fix Agent will fix these automatically. Only flag as BLOCKING when:
             - Incorrect behavior (does not match the issue spec)
@@ -68,27 +50,28 @@ jobs:
             - Optional refactors that do not affect correctness
             - Nice-to-have improvements
 
-            ## Step 2: Post a PR comment
+            ## Output — two steps, in this order
 
-            Run this exact command with your review as the body:
-            gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "<your review>"
+            ### Step 1: Post a PR comment
 
-            The comment body MUST follow this exact markdown structure:
+            Run: gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "..."
+
+            The comment body MUST follow this exact structure — no prose before or after:
 
             ## PR Review
 
             ### BLOCKING
-            - `path/to/file:42` — description of the problem and exactly what to fix
-            (write "None" if there are no blocking issues)
+            - `path/to/File.java:42` — description of the problem and exactly what to fix
+            (write "None" on a single line if there are no blocking issues)
 
             ### NITS
-            - `path/to/file:10` — suggestion
-            (write "None" if there are no nits)
+            - `path/to/File.java:10` — suggestion
+            (write "None" on a single line if there are no nits)
 
             ### Summary
             One or two sentences summarising the overall state of the PR.
 
-            ## Step 3: Submit a formal GitHub review
+            ### Step 2: Submit a formal GitHub review
 
             Run exactly one of these — do not skip this step:
 
