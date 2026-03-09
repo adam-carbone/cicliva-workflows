@@ -1,0 +1,191 @@
+name: PR Fix Agent
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+      head_branch:
+        required: true
+        type: string
+      triggered_by:
+        required: true
+        type: string
+      run_id:
+        required: true
+        type: string
+      repo:
+        required: true
+        type: string
+      stack:
+        required: true
+        type: string
+        description: "'java' or 'flutter'"
+      build_command:
+        required: true
+        type: string
+      test_command:
+        required: true
+        type: string
+    secrets:
+      anthropic_api_key:
+        required: true
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.head_branch }}
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        if: inputs.stack == 'java'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        if: inputs.stack == 'java'
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Setup Flutter via FVM
+        if: inputs.stack == 'flutter'
+        uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        with:
+          path: .fvmrc
+
+      - name: Flutter pub get
+        if: inputs.stack == 'flutter'
+        run: flutter pub get
+
+      - name: Gather context and check iteration limit
+        id: ci_context
+        uses: actions/github-script@v7
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          INPUT_HEAD_BRANCH: ${{ inputs.head_branch }}
+          INPUT_TRIGGERED_BY: ${{ inputs.triggered_by }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          INPUT_REPO: ${{ inputs.repo }}
+        with:
+          script: |
+            const prNumber = parseInt(process.env.INPUT_PR_NUMBER);
+            const headBranch = process.env.INPUT_HEAD_BRANCH;
+            const triggeredBy = process.env.INPUT_TRIGGERED_BY;
+            const runId = parseInt(process.env.INPUT_RUN_ID);
+            const repoFull = process.env.INPUT_REPO;
+            const [owner, repo] = repoFull.split('/');
+            const MAX_FIX_ATTEMPTS = 3;
+
+            const allComments = await github.rest.issues.listComments({
+              owner, repo,
+              issue_number: prNumber,
+              per_page: 100
+            });
+            const fixAttempts = allComments.data.filter(c =>
+              c.body.includes('<!-- fix-agent-run -->')
+            ).length;
+
+            if (fixAttempts >= MAX_FIX_ATTEMPTS) {
+              await github.rest.issues.createComment({
+                owner, repo,
+                issue_number: prNumber,
+                body: `## PR Fix Agent — Escalating to Human\n\nThis PR has had ${fixAttempts} automated fix attempts and still has unresolved issues. **Human review required.**\n\nPlease inspect the remaining CI failures or blocking review findings and resolve them manually.`
+              });
+              core.setOutput('should_skip', 'true');
+              return {};
+            }
+
+            let ciFailures = [];
+            if (triggeredBy === 'Build + Test') {
+              const jobs = await github.rest.actions.listJobsForWorkflowRun({
+                owner, repo,
+                run_id: runId
+              });
+              const failedJobs = jobs.data.jobs.filter(j => j.conclusion === 'failure');
+              for (const job of failedJobs) {
+                try {
+                  const logs = await github.rest.actions.downloadJobLogsForWorkflowRun({
+                    owner, repo,
+                    job_id: job.id
+                  });
+                  ciFailures.push({ job: job.name, logs: logs.data.slice(-5000) });
+                } catch(e) {}
+              }
+            }
+
+            const blockingReviews = allComments.data
+              .filter(c => c.body && c.body.includes('## PR Review') && c.body.includes('### BLOCKING'))
+              .map(c => {
+                const match = c.body.match(/### BLOCKING\n([\s\S]*?)(?=###|$)/);
+                const text = match ? match[1].trim() : '';
+                return (text && text.toLowerCase() !== 'none') ? text : null;
+              })
+              .filter(Boolean);
+
+            const ciGreen = triggeredBy === 'PR Review';
+
+            core.setOutput('should_skip', 'false');
+            return {
+              prNumber,
+              headBranch,
+              triggeredBy,
+              fixAttempt: fixAttempts + 1,
+              ciGreen,
+              ciFailures,
+              blockingReviews
+            };
+
+      - name: Fix issues with Claude
+        if: steps.ci_context.outputs.should_skip != 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropic_api_key }}
+          claude_args: --max-turns 30 --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*),${{ inputs.stack == 'java' && 'Bash(gradle build),Bash(gradle test),Bash(gradle compileJava)' || 'Bash(flutter pub get),Bash(dart run build_runner:*),Bash(flutter test:*)' }}"
+          prompt: |
+            You are the PR Fix Agent for this repository. This is fix attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of 3.
+
+            ## PR Context
+            PR: #${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
+            Branch: ${{ fromJSON(steps.ci_context.outputs.result).headBranch }}
+            Triggered by: ${{ fromJSON(steps.ci_context.outputs.result).triggeredBy }}
+
+            ## CI Status
+            ${{ fromJSON(steps.ci_context.outputs.result).ciGreen && 'CI is passing.' || 'CI is FAILING. Fix all build and test errors first.' }}
+
+            ${{ fromJSON(steps.ci_context.outputs.result).ciFailures != '[]' && 'CI Failure Logs:' || '' }}
+            ${{ toJSON(fromJSON(steps.ci_context.outputs.result).ciFailures) }}
+
+            ## PR Review — BLOCKING Issues Only
+            **You must ONLY fix BLOCKING issues. Do NOT touch nits.**
+
+            Blocking review findings:
+            ${{ toJSON(fromJSON(steps.ci_context.outputs.result).blockingReviews) }}
+
+            ## Instructions
+            1. Read CLAUDE.md for project conventions
+            2. Fix ALL CI failures (if any)
+            3. Fix ONLY the BLOCKING review findings — skip nits entirely
+            4. Run `${{ inputs.test_command }}` to verify your fixes pass
+            5. Commit and push your fixes to the branch
+            6. Dismiss any existing CHANGES_REQUESTED reviews:
+               gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews | jq '.[] | select(.state == "CHANGES_REQUESTED") | .id' | xargs -I{} gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews/{}/dismissals --method PUT --field message="Issues addressed — re-review triggered by new push."
+            7. Post a comment on the PR that:
+               - Starts with the hidden marker: `<!-- fix-agent-run -->`
+               - Lists what was fixed and what (if anything) remains unresolved
+
+            This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of 3. After 3 attempts the agent stops and escalates to a human.
