@@ -31,12 +31,14 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           prompt: |
-            REPO: ${{ inputs.repo }}
-            PR NUMBER: ${{ inputs.pr_number }}
+            Review PR #${{ inputs.pr_number }} in ${{ inputs.repo }}.
 
-            Review this pull request. Read CLAUDE.md for project conventions first.
+            ## Step 0: Gather context
+            1. Run: gh pr diff ${{ inputs.pr_number }} --repo ${{ inputs.repo }}
+            2. Run: gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json title,body,files
+            3. Read CLAUDE.md using the Read tool (it is checked out at CLAUDE.md in the workspace)
 
-            ## Categorize every finding as BLOCKING or NIT
+            ## Step 1: Categorize every finding as BLOCKING or NIT
 
             **BLOCKING** — the PR Fix Agent will fix these automatically. Only flag as BLOCKING when:
             - Incorrect behavior (does not match the issue spec)
@@ -50,28 +52,27 @@ jobs:
             - Optional refactors that do not affect correctness
             - Nice-to-have improvements
 
-            ## Output — two steps, in this order
+            ## Step 2: Post a PR comment
 
-            ### Step 1: Post a PR comment
+            Run this command (replace the body with your actual review):
+            gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "<your review>"
 
-            Run: gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "..."
-
-            The comment body MUST follow this exact structure — no prose before or after:
+            The comment body MUST follow this exact markdown structure — no prose before or after:
 
             ## PR Review
 
             ### BLOCKING
-            - `path/to/File.java:42` — description of the problem and exactly what to fix
-            (write "None" on a single line if there are no blocking issues)
+            - `path/to/file:42` — description of the problem and exactly what to fix
+            (write "None" if there are no blocking issues)
 
             ### NITS
-            - `path/to/File.java:10` — suggestion
-            (write "None" on a single line if there are no nits)
+            - `path/to/file:10` — suggestion
+            (write "None" if there are no nits)
 
             ### Summary
             One or two sentences summarising the overall state of the PR.
 
-            ### Step 2: Submit a formal GitHub review
+            ## Step 3: Submit a formal GitHub review
 
             Run exactly one of these — do not skip this step:
 
@@ -80,4 +81,4 @@ jobs:
 
             If there are NO blocking issues:
             gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review."
-          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*)"
+          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*),Read,Glob,Grep"
