@@ -80,4 +80,5 @@ jobs:
 
             If there are NO blocking issues:
             gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review."
+          show_full_output: true
           claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*)"
