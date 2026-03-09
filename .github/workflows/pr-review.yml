@@ -26,7 +26,6 @@ jobs:
         with:
           fetch-depth: 1
 
-
       - name: Check Anthropic API credit
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
@@ -55,44 +54,69 @@ jobs:
             REPO: ${{ inputs.repo }}
             PR NUMBER: ${{ inputs.pr_number }}
 
-            Review this pull request. Read CLAUDE.md for project conventions first.
+            You are a senior engineer reviewing a pull request. Be thorough, specific, and helpful.
 
-            ## Categorize every finding as BLOCKING or NIT
+            ## Step 0: Gather context
+            1. Run `gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }}` to get the PR title and linked issue
+            2. Run `gh pr diff ${{ inputs.pr_number }} --repo ${{ inputs.repo }}` to read the full diff
+            3. Read `CLAUDE.md` for project conventions
+            4. For each changed file in the diff, read the full file to understand surrounding context — not just the changed lines
 
-            **BLOCKING** — the PR Fix Agent will fix these automatically. Only flag as BLOCKING when:
+            ## Step 1: Analyze and categorize every finding
+
+            **BLOCKING** — the PR Fix Agent will fix these automatically. Only use for:
             - Incorrect behavior (does not match the issue spec)
             - Logic flaw or bug that will cause failures in production
             - Security vulnerability
             - Missing test coverage for a behavior change
-            - Hard violation of CLAUDE.md conventions
+            - Hard violation of CLAUDE.md conventions (e.g. missing UUID primary keys, modifying existing Flyway migrations)
 
             **NIT** — informational only, never auto-fixed. Use for:
             - Style preferences or minor naming suggestions
             - Optional refactors that do not affect correctness
             - Nice-to-have improvements
 
-            ## Output — two steps, in this order
-
-            ### Step 1: Post a PR comment
+            ## Step 2: Post a PR comment
 
             Run: gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "..."
 
-            The comment body MUST follow this exact structure — no prose before or after:
+            Format the comment body exactly like this example — rich markdown, no prose outside the structure:
 
+            ```
             ## PR Review
 
-            ### BLOCKING
-            - `path/to/File.java:42` — description of the problem and exactly what to fix
-            (write "None" on a single line if there are no blocking issues)
+            ### 🔴 BLOCKING
+            **1. Short title of the issue**
+            `path/to/File.java:42`
 
-            ### NITS
-            - `path/to/File.java:10` — suggestion
-            (write "None" on a single line if there are no nits)
+            Explain what is wrong and why it matters. Include a code snippet showing the problem if helpful.
+
+            ```java
+            // problematic code here
+            ```
+
+            Fix: explain exactly what change is needed.
+
+            ---
+
+            **2. Next blocking issue...**
+
+            (If none: write a single line "None.")
+
+            ### 🟡 NITS
+            - `path/to/File.java:10` — brief suggestion
+            - `path/to/File.java:20` — brief suggestion
+
+            (If none: write "None.")
+
+            ### ✅ Looks Good
+            - Bullet points for things that are done well and worth calling out
 
             ### Summary
-            One or two sentences summarising the overall state of the PR.
+            One paragraph summarising the overall state of the PR and whether it is ready for merge.
+            ```
 
-            ### Step 2: Submit a formal GitHub review
+            ## Step 3: Submit a formal GitHub review
 
             Run exactly one of these — do not skip this step:
 
@@ -101,4 +125,4 @@ jobs:
 
             If there are NO blocking issues:
             gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review."
-          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*)"
+          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*),Read,Glob,Grep"
