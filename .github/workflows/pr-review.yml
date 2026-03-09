@@ -118,7 +118,7 @@ jobs:
 
             If there are NO blocking issues:
             gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review and merge."
-          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*),Read,Glob,Grep"
+          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api *),Read,Glob,Grep"
 
       - name: Update ready-to-merge label
         if: always()
