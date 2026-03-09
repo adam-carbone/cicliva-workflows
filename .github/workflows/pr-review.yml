@@ -126,3 +126,17 @@ jobs:
             If there are NO blocking issues:
             gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review."
           claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*),Read,Glob,Grep"
+
+      - name: Update ready-to-merge label
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STATE=$(gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews \
+            --jq '[.[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED")] | last | .state' 2>/dev/null || echo "")
+          gh label create "ready to merge" --color "0E8A16" --repo ${{ inputs.repo }} 2>/dev/null || true
+          if [ "$STATE" = "APPROVED" ]; then
+            gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --add-label "ready to merge"
+          else
+            gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --remove-label "ready to merge" 2>/dev/null || true
+          fi
