@@ -26,6 +26,27 @@ jobs:
         with:
           fetch-depth: 1
 
+
+      - name: Check Anthropic API credit
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+        run: |
+          RESPONSE=$(curl -s --max-time 10 -X POST https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d '{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}')
+          if echo "$RESPONSE" | grep -q '"type":"error"'; then
+            ERROR_TYPE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('error',{}).get('type','unknown'))")
+            if echo "$RESPONSE" | grep -qi "credit\|billing\|balance"; then
+              echo "::error::Anthropic API billing issue — credit balance too low. Top up at https://console.anthropic.com and retry."
+              exit 1
+            else
+              echo "::warning::Anthropic API check returned: $ERROR_TYPE"
+            fi
+          fi
+          echo "Anthropic API key OK"
+
       - name: Review PR
         uses: anthropics/claude-code-action@v1
         with:
@@ -80,5 +101,4 @@ jobs:
 
             If there are NO blocking issues:
             gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review."
-          show_full_output: true
           claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*)"
