@@ -1,0 +1,37 @@
+name: Issue Orchestrator
+
+on:
+  workflow_call:
+    secrets:
+      github_token:
+        required: true
+
+jobs:
+  chain:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Find closed issue and trigger next
+        env:
+          GH_TOKEN: ${{ secrets.github_token }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          CLOSED_ISSUE=$(echo "$PR_BODY" | grep -oiE '(closes|fixes|resolves) #[0-9]+' | grep -oE '[0-9]+' | head -1)
+          if [ -z "$CLOSED_ISSUE" ]; then
+            echo "No linked issue found in PR body — nothing to chain."
+            exit 0
+          fi
+          echo "PR closed issue #$CLOSED_ISSUE"
+          ISSUE_BODY=$(gh api repos/$REPO/issues/$CLOSED_ISSUE --jq '.body')
+          NEXT_ISSUE=$(echo "$ISSUE_BODY" | grep -oE '\*\*Next:\*\* #[0-9]+' | grep -oE '[0-9]+' | head -1)
+          if [ -z "$NEXT_ISSUE" ]; then
+            echo "Issue #$CLOSED_ISSUE has no Next: reference — end of chain."
+            exit 0
+          fi
+          echo "Triggering next issue: #$NEXT_ISSUE"
+          gh api repos/$REPO/issues/$NEXT_ISSUE/comments \
+            --method POST \
+            --field body="Issue #$CLOSED_ISSUE has been merged. @claude please implement this issue."
