@@ -135,3 +135,14 @@ jobs:
           else
             gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --remove-label "ready to merge" 2>/dev/null || true
           fi
+
+          echo "has_blocking=$HAS_BLOCKING" >> $GITHUB_ENV
+
+      - name: Fail check if blocking issues found
+        if: always()
+        run: |
+          if [ "${has_blocking}" != "0" ]; then
+            echo "::error::PR Review found blocking issues. Fix them before merging."
+            exit 1
+          fi
+          echo "No blocking issues — PR is clear for merge."
