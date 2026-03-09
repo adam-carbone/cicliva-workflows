@@ -12,7 +12,7 @@ on:
     secrets:
       anthropic_api_key:
         required: true
-      github_token:
+      bot_token:
         required: true
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.github_token }}
+          token: ${{ secrets.bot_token }}
           fetch-depth: 1
 
       - name: Check Anthropic API credit
@@ -53,7 +53,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
-          github_token: ${{ secrets.github_token }}
+          bot_token: ${{ secrets.bot_token }}
           prompt: |
             REPO: ${{ inputs.repo }}
             PR NUMBER: ${{ inputs.pr_number }}
@@ -114,7 +114,7 @@ jobs:
       - name: Update ready-to-merge label
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.github_token }}
+          GH_TOKEN: ${{ secrets.bot_token }}
         run: |
           gh label create "ready to merge" --color "0E8A16" --repo ${{ inputs.repo }} 2>/dev/null || true
 
