@@ -114,7 +114,7 @@ jobs:
             Run exactly one of these — do not skip this step:
 
             If there are BLOCKING issues:
-            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=CHANGES_REQUESTED --field body="Blocking issues found — see PR Review comment above."
+            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=REQUEST_CHANGES --field body="Blocking issues found — see PR Review comment above."
 
             If there are NO blocking issues:
             gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review and merge."
