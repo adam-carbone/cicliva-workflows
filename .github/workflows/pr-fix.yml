@@ -49,6 +49,12 @@ jobs:
           ref: ${{ inputs.head_branch }}
           fetch-depth: 0
 
+      - name: Remove ready-to-merge label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --remove-label "ready to merge" 2>/dev/null || true
+
       - name: Set up Java 21
         if: inputs.stack == 'java'
         uses: actions/setup-java@v4
