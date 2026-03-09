@@ -15,10 +15,6 @@ on:
       run_id:
         required: true
         type: string
-      extra_attempts:
-        required: false
-        type: string
-        default: '0'
       repo:
         required: true
         type: string
@@ -132,7 +128,8 @@ jobs:
             const runId = parseInt(process.env.INPUT_RUN_ID);
             const repoFull = process.env.INPUT_REPO;
             const [owner, repo] = repoFull.split('/');
-            const MAX_FIX_ATTEMPTS = 3 + parseInt('${{ inputs.extra_attempts }}' || '0');
+            // Read effective max from <!-- fix-max-attempts:N --> marker comment (set by /fix N)
+            const BASE_MAX = 3;
 
             const allComments = await github.rest.issues.listComments({
               owner, repo,
@@ -142,6 +139,13 @@ jobs:
             const fixAttempts = allComments.data.filter(c =>
               c.body.includes('<!-- fix-agent-run -->')
             ).length;
+
+            const maxComment = allComments.data.find(c => c.body && c.body.includes('<!-- fix-max-attempts:'));
+            let MAX_FIX_ATTEMPTS = BASE_MAX;
+            if (maxComment) {
+              const m = maxComment.body.match(/<!-- fix-max-attempts:(\d+) -->/);
+              if (m) MAX_FIX_ATTEMPTS = parseInt(m[1]);
+            }
 
             if (fixAttempts >= MAX_FIX_ATTEMPTS) {
               await github.rest.issues.createComment({
