@@ -218,13 +218,20 @@ jobs:
 
             ## Instructions
             1. Read CLAUDE.md for project conventions
-            2. Fix ALL CI failures (if any)
-            3. Fix ONLY the BLOCKING review findings — skip nits entirely
-            4. Run `${{ inputs.test_command }}` to verify your fixes pass
-            5. Commit and push your fixes to the branch
-            6. Dismiss any existing CHANGES_REQUESTED reviews:
+            2. For each CI failure or BLOCKING issue, before writing any fix:
+               - Read the full stack trace to find the exact failing line
+               - Read the source file at that line
+               - Read the test file to understand what it expects
+               - Identify the exact mismatch — do not guess
+            3. Fix ALL CI failures (if any)
+            4. Fix ONLY the BLOCKING review findings — skip nits entirely
+            5. Run `${{ inputs.test_command }}` to verify ALL tests pass
+               - If any tests fail, read the failure, fix it, and run again
+               - **Do NOT commit or push until the full test suite passes**
+            6. Commit and push your fixes to the branch
+            7. Dismiss any existing CHANGES_REQUESTED reviews:
                gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews | jq '.[] | select(.state == "CHANGES_REQUESTED") | .id' | xargs -I{} gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews/{}/dismissals --method PUT --field message="Issues addressed — re-review triggered by new push."
-            7. Post a comment on the PR that:
+            8. Post a comment on the PR that:
                - Starts with the hidden marker: `<!-- fix-agent-run -->`
                - Lists what was fixed and what (if anything) remains unresolved
 
