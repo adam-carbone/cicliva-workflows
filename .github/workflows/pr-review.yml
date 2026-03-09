@@ -26,6 +26,17 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Read CLAUDE.md
+        id: claude_md
+        run: |
+          if [ -f CLAUDE.md ]; then
+            echo "content<<HEREDOC_EOF" >> $GITHUB_OUTPUT
+            cat CLAUDE.md >> $GITHUB_OUTPUT
+            echo "HEREDOC_EOF" >> $GITHUB_OUTPUT
+          else
+            echo "content=No CLAUDE.md found." >> $GITHUB_OUTPUT
+          fi
+
       - name: Review PR
         uses: anthropics/claude-code-action@v1
         with:
@@ -33,10 +44,15 @@ jobs:
           prompt: |
             Review PR #${{ inputs.pr_number }} in ${{ inputs.repo }}.
 
-            ## Step 0: Gather context
-            1. Run: gh pr diff ${{ inputs.pr_number }} --repo ${{ inputs.repo }}
-            2. Run: gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json title,body,files
-            3. Read CLAUDE.md using the Read tool (it is checked out at CLAUDE.md in the workspace)
+            ## Project conventions (from CLAUDE.md)
+
+            ${{ steps.claude_md.outputs.content }}
+
+            ## Step 0: Read the PR
+
+            Run these two commands and read their output carefully:
+            1. gh pr diff ${{ inputs.pr_number }} --repo ${{ inputs.repo }}
+            2. gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json title,body
 
             ## Step 1: Categorize every finding as BLOCKING or NIT
 
@@ -54,10 +70,10 @@ jobs:
 
             ## Step 2: Post a PR comment
 
-            Run this command (replace the body with your actual review):
+            Run this exact command with your review as the body:
             gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "<your review>"
 
-            The comment body MUST follow this exact markdown structure — no prose before or after:
+            The comment body MUST follow this exact markdown structure:
 
             ## PR Review
 
@@ -81,4 +97,4 @@ jobs:
 
             If there are NO blocking issues:
             gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review."
-          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*),Read,Glob,Grep"
+          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*)"
