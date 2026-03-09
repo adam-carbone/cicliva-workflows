@@ -63,6 +63,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           github_token: ${{ steps.bot-token.outputs.token }}
+          allowed_bots: domiva-life-agent[bot]
           prompt: |
             REPO: ${{ inputs.repo }}
             PR NUMBER: ${{ inputs.pr_number }}
