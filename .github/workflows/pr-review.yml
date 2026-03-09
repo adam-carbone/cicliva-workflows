@@ -12,7 +12,9 @@ on:
     secrets:
       anthropic_api_key:
         required: true
-      bot_token:
+      domiva_agent_app_id:
+        required: true
+      domiva_agent_private_key:
         required: true
 
 jobs:
@@ -23,10 +25,17 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.domiva_agent_app_id }}
+          private-key: ${{ secrets.domiva_agent_private_key }}
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.bot_token }}
+          token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 1
 
       - name: Check Anthropic API credit
@@ -53,7 +62,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
-          bot_token: ${{ secrets.bot_token }}
+          github_token: ${{ steps.bot-token.outputs.token }}
           prompt: |
             REPO: ${{ inputs.repo }}
             PR NUMBER: ${{ inputs.pr_number }}
@@ -114,7 +123,7 @@ jobs:
       - name: Update ready-to-merge label
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.bot_token }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           gh label create "ready to merge" --color "0E8A16" --repo ${{ inputs.repo }} 2>/dev/null || true
 
