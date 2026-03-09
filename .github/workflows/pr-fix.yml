@@ -31,6 +31,10 @@ on:
     secrets:
       anthropic_api_key:
         required: true
+      domiva_agent_app_id:
+        required: true
+      domiva_agent_private_key:
+        required: true
 
 jobs:
   fix:
@@ -43,9 +47,17 @@ jobs:
       id-token: write
 
     steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.domiva_agent_app_id }}
+          private-key: ${{ secrets.domiva_agent_private_key }}
+
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
+          token: ${{ steps.bot-token.outputs.token }}
           ref: ${{ inputs.head_branch }}
           fetch-depth: 0
 
@@ -182,6 +194,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
+          github_token: ${{ steps.bot-token.outputs.token }}
           claude_args: --max-turns 30 --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*),${{ inputs.stack == 'java' && 'Bash(gradle build),Bash(gradle test),Bash(gradle compileJava)' || 'Bash(flutter pub get),Bash(dart run build_runner:*),Bash(flutter test:*)' }}"
           prompt: |
             You are the PR Fix Agent for this repository. This is fix attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of 3.
