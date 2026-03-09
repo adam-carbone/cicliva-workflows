@@ -15,6 +15,10 @@ on:
       run_id:
         required: true
         type: string
+      extra_attempts:
+        required: false
+        type: string
+        default: '0'
       repo:
         required: true
         type: string
@@ -128,7 +132,7 @@ jobs:
             const runId = parseInt(process.env.INPUT_RUN_ID);
             const repoFull = process.env.INPUT_REPO;
             const [owner, repo] = repoFull.split('/');
-            const MAX_FIX_ATTEMPTS = 3;
+            const MAX_FIX_ATTEMPTS = 3 + parseInt('${{ inputs.extra_attempts }}' || '0');
 
             const allComments = await github.rest.issues.listComments({
               owner, repo,
@@ -143,7 +147,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner, repo,
                 issue_number: prNumber,
-                body: `## PR Fix Agent — Escalating to Human\n\nThis PR has had ${fixAttempts} automated fix attempts and still has unresolved issues. **Human review required.**\n\nPlease inspect the remaining CI failures or blocking review findings and resolve them manually.`
+                body: `## PR Fix Agent — Escalating to Human\n\nThis PR has had ${fixAttempts} automated fix attempts and still has unresolved issues. **Human review required.**\n\nPlease inspect the remaining CI failures or blocking review findings and resolve them manually.\n\n> 💡 To grant more automated attempts, comment \`/fix\` (1 more) or \`/fix N\` for N more.`
               });
               core.setOutput('should_skip', 'true');
               return {};
@@ -184,6 +188,7 @@ jobs:
               headBranch,
               triggeredBy,
               fixAttempt: fixAttempts + 1,
+              maxAttempts: MAX_FIX_ATTEMPTS,
               ciGreen,
               ciFailures,
               blockingReviews
@@ -236,4 +241,4 @@ jobs:
                - Starts with the hidden marker: `<!-- fix-agent-run -->`
                - Lists what was fixed and what (if anything) remains unresolved
 
-            This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of 3. After 3 attempts the agent stops and escalates to a human.
+            This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}. After ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }} attempts the agent stops and escalates to a human.
