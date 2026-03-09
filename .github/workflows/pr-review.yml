@@ -1,0 +1,83 @@
+name: PR Review
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+      repo:
+        required: true
+        type: string
+    secrets:
+      anthropic_api_key:
+        required: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Review PR
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropic_api_key }}
+          prompt: |
+            REPO: ${{ inputs.repo }}
+            PR NUMBER: ${{ inputs.pr_number }}
+
+            Review this pull request. Read CLAUDE.md for project conventions first.
+
+            ## Categorize every finding as BLOCKING or NIT
+
+            **BLOCKING** — the PR Fix Agent will fix these automatically. Only flag as BLOCKING when:
+            - Incorrect behavior (does not match the issue spec)
+            - Logic flaw or bug that will cause failures in production
+            - Security vulnerability
+            - Missing test coverage for a behavior change
+            - Hard violation of CLAUDE.md conventions
+
+            **NIT** — informational only, never auto-fixed. Use for:
+            - Style preferences or minor naming suggestions
+            - Optional refactors that do not affect correctness
+            - Nice-to-have improvements
+
+            ## Output — two steps, in this order
+
+            ### Step 1: Post a PR comment
+
+            Run: gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "..."
+
+            The comment body MUST follow this exact structure — no prose before or after:
+
+            ## PR Review
+
+            ### BLOCKING
+            - `path/to/File.java:42` — description of the problem and exactly what to fix
+            (write "None" on a single line if there are no blocking issues)
+
+            ### NITS
+            - `path/to/File.java:10` — suggestion
+            (write "None" on a single line if there are no nits)
+
+            ### Summary
+            One or two sentences summarising the overall state of the PR.
+
+            ### Step 2: Submit a formal GitHub review
+
+            Run exactly one of these — do not skip this step:
+
+            If there are BLOCKING issues:
+            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=CHANGES_REQUESTED --field body="Blocking issues found — see PR Review comment above."
+
+            If there are NO blocking issues:
+            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review."
+          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api repos/*/pulls/*/reviews:*)"
