@@ -156,9 +156,9 @@ jobs:
             }
 
             const blockingReviews = allComments.data
-              .filter(c => c.body && c.body.includes('## PR Review') && c.body.includes('### BLOCKING'))
+              .filter(c => c.body && /PR Review/i.test(c.body) && /BLOCKING/i.test(c.body))
               .map(c => {
-                const match = c.body.match(/### BLOCKING\n([\s\S]*?)(?=###|$)/);
+                const match = c.body.match(/(?:#{1,3}\s*🔴?\s*BLOCKING|\*\*BLOCKING\*\*|^BLOCKING)\s*\n([\s\S]*?)(?=#{1,3}|\*\*NITS|\*\*LOOKS|^NITS|$)/im);
                 const text = match ? match[1].trim() : '';
                 return (text && text.toLowerCase() !== 'none') ? text : null;
               })
