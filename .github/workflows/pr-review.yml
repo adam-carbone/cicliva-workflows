@@ -12,9 +12,7 @@ on:
     secrets:
       anthropic_api_key:
         required: true
-      domiva_agent_app_id:
-        required: true
-      domiva_agent_private_key:
+      github_token:
         required: true
 
 jobs:
@@ -25,17 +23,10 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      - name: Generate bot token
-        id: bot-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.domiva_agent_app_id }}
-          private-key: ${{ secrets.domiva_agent_private_key }}
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.bot-token.outputs.token }}
+          token: ${{ secrets.github_token }}
           fetch-depth: 1
 
       - name: Check Anthropic API credit
@@ -62,7 +53,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
-          github_token: ${{ steps.bot-token.outputs.token }}
+          github_token: ${{ secrets.github_token }}
           prompt: |
             REPO: ${{ inputs.repo }}
             PR NUMBER: ${{ inputs.pr_number }}
@@ -109,7 +100,7 @@ jobs:
             ### Summary
             One paragraph summarising the overall state and whether it is ready for merge.
 
-            ## Step 3: Submit a formal GitHub review using the bot token
+            ## Step 3: Submit a formal GitHub review
 
             Run exactly one of these — do not skip this step:
 
@@ -123,7 +114,7 @@ jobs:
       - name: Update ready-to-merge label
         if: always()
         env:
-          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.github_token }}
         run: |
           gh label create "ready to merge" --color "0E8A16" --repo ${{ inputs.repo }} 2>/dev/null || true
 
