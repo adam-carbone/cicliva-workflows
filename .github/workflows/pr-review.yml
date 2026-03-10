@@ -90,9 +90,9 @@ jobs:
             - Optional refactors that do not affect correctness
             - Nice-to-have improvements
 
-            ## Step 2: Write output files and post the PR comment
+            ## Step 2: Write your findings to two output files
 
-            Complete your full analysis first. Then write TWO files simultaneously — do not post anything yet.
+            Complete your full analysis first. Then write BOTH files — the workflow will handle posting.
 
             **File 1 — PR comment** (`/tmp/pr-review.md`):
             ```
@@ -123,29 +123,37 @@ jobs:
             {"event":"APPROVE","body":"No blocking issues. Ready for human review and merge."}
             ```
 
-            **Rules for both files:**
+            **Rules:**
             - Use exactly `### 🔴 BLOCKING` — no variations, no missing emoji
             - Use exactly `### 🟡 NITS` — no variations
             - Use exactly `### ✅ Looks Good` — no variations
             - Every section in the .md must be present even if empty (write "None.")
             - The JSON body must be valid JSON — escape any double quotes inside the body string
+            - You MUST write both files. The workflow will fail loudly if either is missing.
+            - Do NOT post the comment or submit the review yourself — the workflow does that.
+          claude_args: --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Read,Glob,Grep"
 
-            Then post the PR comment:
-            ```
-            gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body-file /tmp/pr-review.md
-            ```
+      - name: Post PR comment
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          if [ ! -f /tmp/pr-review.md ]; then
+            echo "::error::Claude did not write /tmp/pr-review.md — review analysis incomplete"
+            exit 1
+          fi
+          gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body-file /tmp/pr-review.md
 
-            **Do NOT use --body "..." for the comment — newlines will be escaped.**
-
-            ## Step 3: Submit the formal GitHub review
-
-            Do not skip this step. Submit using the payload file Claude already wrote:
-            ```
-            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews \
-              --method POST \
-              --input /tmp/review-payload.json
-            ```
-          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api *),Read,Glob,Grep"
+      - name: Submit formal review
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          if [ ! -f /tmp/review-payload.json ]; then
+            echo "::error::Claude did not write /tmp/review-payload.json — review payload missing"
+            exit 1
+          fi
+          gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews \
+            --method POST \
+            --input /tmp/review-payload.json
 
       - name: Update ready-to-merge label
         if: always()
