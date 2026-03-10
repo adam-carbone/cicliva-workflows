@@ -94,21 +94,27 @@ jobs:
 
             Run: gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "..."
 
-            Format the comment body exactly like this:
+            **The comment body MUST use this exact format. Do not deviate — the Fix Agent parses it.**
 
             ## PR Review
 
             ### 🔴 BLOCKING
-            (If none: write "None.")
+            (If none: write exactly "None.")
 
             ### 🟡 NITS
-            (If none: write "None.")
+            (If none: write exactly "None.")
 
             ### ✅ Looks Good
             - Bullet points for things done well
 
             ### Summary
             One paragraph summarising the overall state and whether it is ready for merge.
+
+            **Rules:**
+            - Use exactly `### 🔴 BLOCKING` — no variations, no missing emoji
+            - Use exactly `### 🟡 NITS` — no variations
+            - Use exactly `### ✅ Looks Good` — no variations
+            - Every section must be present even if empty (write "None.")
 
             ## Step 3: Submit a formal GitHub review
 
