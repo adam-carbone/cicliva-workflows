@@ -94,8 +94,14 @@ jobs:
 
             Complete your full analysis before posting. Do not post a draft and revise — post once only.
 
-            Run: gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "..."
+            Write the review to a temp file and use --body-file to preserve formatting:
 
+            cat > /tmp/pr-review.md << 'REVIEW'
+            [your formatted review here]
+            REVIEW
+            gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body-file /tmp/pr-review.md
+
+            **Do NOT use --body "..." — newlines will be escaped and the comment will render as one line.**
             **The comment body MUST use this exact format. Do not deviate — the Fix Agent parses it.**
 
             ## PR Review
