@@ -238,7 +238,9 @@ jobs:
           allowed_bots: domiva-life-agent[bot]
           claude_args: --max-turns 30 --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git merge:*),Bash(git fetch:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh api *),${{ inputs.stack == 'java' && 'Bash(gradle build),Bash(gradle test),Bash(gradle compileJava)' || 'Bash(flutter pub get),Bash(dart run build_runner:*),Bash(flutter test:*)' }}"
           prompt: |
-            You are the PR Fix Agent for this repository. This is fix attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of 3.
+            You are the PR Fix Agent for this repository. This is fix attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}.
+
+            Your role is to repair — not rewrite. Fix it properly, not quickly. Before touching anything, understand why the reviewer or CI flagged it. The correct fix addresses the root cause, even if it takes more work than the minimum change.
 
             ## PR Context
             PR: #${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
@@ -282,7 +284,8 @@ jobs:
                - Trigger PR Review to close the loop:
                  gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
 
-            This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}. After ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }} attempts the agent stops and escalates to a human.
+            This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}. After ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }} attempts, the agent stops and escalates to a human.
+
 
 
 
