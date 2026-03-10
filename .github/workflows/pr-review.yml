@@ -131,7 +131,7 @@ jobs:
             - The JSON body must be valid JSON — escape any double quotes inside the body string
             - You MUST write both files. The workflow will fail loudly if either is missing.
             - Do NOT post the comment or submit the review yourself — the workflow does that.
-          claude_args: --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Read,Glob,Grep"
+          claude_args: --allowedTools "Write,Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*)"
 
       - name: Post PR comment
         env:
