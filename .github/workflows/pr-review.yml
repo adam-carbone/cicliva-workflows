@@ -90,83 +90,62 @@ jobs:
             - Optional refactors that do not affect correctness
             - Nice-to-have improvements
 
-            ## Step 2: Post exactly ONE PR comment
+            ## Step 2: Write output files and post the PR comment
 
-            Complete your full analysis before posting. Do not post a draft and revise — post once only.
+            Complete your full analysis first. Then write TWO files simultaneously — do not post anything yet.
 
-            Write the review to a temp file and use --body-file to preserve formatting:
-
-            ```
-            cat > /tmp/pr-review.md << 'REVIEW'
-            [your formatted review here]
-            REVIEW
-            gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body-file /tmp/pr-review.md
-            ```
-
-            **Do NOT use --body "..." — newlines will be escaped and the comment will render as one line.**
-            **The comment body MUST use this exact format. Do not deviate.**
-
+            **File 1 — PR comment** (`/tmp/pr-review.md`):
             ```
             ## PR Review
 
             ### 🔴 BLOCKING
-            (If none: write exactly "None.")
+            (your blocking findings, or "None.")
 
             ### 🟡 NITS
-            (If none: write exactly "None.")
+            (your nit findings, or "None.")
 
             ### ✅ Looks Good
             - Bullet points for things done well
 
             ### Summary
-            One paragraph summarising the overall state and whether it is ready for merge.
+            One paragraph summarising the overall state.
             ```
 
-            **Rules:**
+            **File 2 — Review API payload** (`/tmp/review-payload.json`):
+
+            If there are BLOCKING issues:
+            ```json
+            {"event":"REQUEST_CHANGES","body":"<blocking findings verbatim — same text as in ### 🔴 BLOCKING above>"}
+            ```
+
+            If there are NO blocking issues:
+            ```json
+            {"event":"APPROVE","body":"No blocking issues. Ready for human review and merge."}
+            ```
+
+            **Rules for both files:**
             - Use exactly `### 🔴 BLOCKING` — no variations, no missing emoji
             - Use exactly `### 🟡 NITS` — no variations
             - Use exactly `### ✅ Looks Good` — no variations
-            - Every section must be present even if empty (write "None.")
+            - Every section in the .md must be present even if empty (write "None.")
+            - The JSON body must be valid JSON — escape any double quotes inside the body string
 
-            ## Step 3: Submit a formal GitHub review
-
-            Run exactly one of these — do not skip this step.
-
-            **IMPORTANT**: The review body is the machine-readable source of truth for the Fix Agent.
-            It must contain the blocking issues verbatim — not a pointer to the comment.
-
-            If there are BLOCKING issues, extract them and submit:
+            Then post the PR comment:
             ```
-            python3 -c "
-            import json
-            with open('/tmp/pr-review.md') as f:
-                lines = f.read().splitlines()
-            capturing = False
-            blocking = []
-            for line in lines:
-                if line.strip() == '### 🔴 BLOCKING':
-                    capturing = True
-                    continue
-                if line.startswith('### ') and capturing:
-                    break
-                if capturing:
-                    blocking.append(line)
-            body = '\n'.join(blocking).strip()
-            print(json.dumps({'event': 'REQUEST_CHANGES', 'body': body}))
-            " > /tmp/review-payload.json
+            gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body-file /tmp/pr-review.md
+            ```
+
+            **Do NOT use --body "..." for the comment — newlines will be escaped.**
+
+            ## Step 3: Submit the formal GitHub review
+
+            Do not skip this step. Submit using the payload file Claude already wrote:
+            ```
             gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews \
               --method POST \
               --input /tmp/review-payload.json
             ```
-
-            If there are NO blocking issues:
-            ```
-            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews \
-              --method POST \
-              --field event=APPROVE \
-              --field body="No blocking issues. Ready for human review and merge."
-            ```
-          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api *),Bash(python3 *),Read,Glob,Grep"
+          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api *),Read,Glob,Grep"
 
       - name: Update ready-to-merge label
         if: always()
