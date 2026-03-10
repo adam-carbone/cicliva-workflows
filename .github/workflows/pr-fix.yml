@@ -245,4 +245,8 @@ jobs:
                - Starts with the hidden marker: `<!-- fix-agent-run -->`
                - Lists what was fixed and what (if anything) remains unresolved
 
+            9. If all blocking issues were already resolved in prior commits and you made NO new commits:
+               - Trigger PR Review to close the loop:
+                 gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
+
             This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}. After ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }} attempts the agent stops and escalates to a human.
