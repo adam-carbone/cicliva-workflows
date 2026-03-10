@@ -155,7 +155,7 @@ jobs:
             const repoFull = process.env.INPUT_REPO;
             const [owner, repo] = repoFull.split('/');
             // Read effective max from <!-- fix-max-attempts:N --> marker comment (set by /fix N)
-            const BASE_MAX = 3;
+            const BASE_MAX = 5;
 
             const allComments = await github.rest.issues.listComments({
               owner, repo,
