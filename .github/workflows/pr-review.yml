@@ -96,14 +96,17 @@ jobs:
 
             Write the review to a temp file and use --body-file to preserve formatting:
 
+            ```
             cat > /tmp/pr-review.md << 'REVIEW'
             [your formatted review here]
             REVIEW
             gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body-file /tmp/pr-review.md
+            ```
 
             **Do NOT use --body "..." — newlines will be escaped and the comment will render as one line.**
-            **The comment body MUST use this exact format. Do not deviate — the Fix Agent parses it.**
+            **The comment body MUST use this exact format. Do not deviate.**
 
+            ```
             ## PR Review
 
             ### 🔴 BLOCKING
@@ -117,6 +120,7 @@ jobs:
 
             ### Summary
             One paragraph summarising the overall state and whether it is ready for merge.
+            ```
 
             **Rules:**
             - Use exactly `### 🔴 BLOCKING` — no variations, no missing emoji
@@ -126,14 +130,43 @@ jobs:
 
             ## Step 3: Submit a formal GitHub review
 
-            Run exactly one of these — do not skip this step:
+            Run exactly one of these — do not skip this step.
 
-            If there are BLOCKING issues:
-            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=REQUEST_CHANGES --field body="Blocking issues found — see PR Review comment above."
+            **IMPORTANT**: The review body is the machine-readable source of truth for the Fix Agent.
+            It must contain the blocking issues verbatim — not a pointer to the comment.
+
+            If there are BLOCKING issues, extract them and submit:
+            ```
+            python3 -c "
+            import json
+            with open('/tmp/pr-review.md') as f:
+                lines = f.read().splitlines()
+            capturing = False
+            blocking = []
+            for line in lines:
+                if line.strip() == '### 🔴 BLOCKING':
+                    capturing = True
+                    continue
+                if line.startswith('### ') and capturing:
+                    break
+                if capturing:
+                    blocking.append(line)
+            body = '\n'.join(blocking).strip()
+            print(json.dumps({'event': 'REQUEST_CHANGES', 'body': body}))
+            " > /tmp/review-payload.json
+            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews \
+              --method POST \
+              --input /tmp/review-payload.json
+            ```
 
             If there are NO blocking issues:
-            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews --method POST --field event=APPROVE --field body="No blocking issues. Ready for human review and merge."
-          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api *),Read,Glob,Grep"
+            ```
+            gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews \
+              --method POST \
+              --field event=APPROVE \
+              --field body="No blocking issues. Ready for human review and merge."
+            ```
+          claude_args: --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api *),Bash(python3 *),Read,Glob,Grep"
 
       - name: Update ready-to-merge label
         if: always()
