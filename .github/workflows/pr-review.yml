@@ -39,9 +39,10 @@ jobs:
           fetch-depth: 1
 
       - name: Check branch is up to date with main
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
-          git fetch origin main
-          BEHIND=$(git rev-list HEAD..origin/main --count)
+          BEHIND=$(gh api repos/${{ inputs.repo }}/compare/${{ inputs.head_branch }}...main --jq '.behind_by')
           if [ "$BEHIND" != "0" ]; then
             echo "::error::Branch is $BEHIND commit(s) behind main. Sync before reviewing."
             exit 1
