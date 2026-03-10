@@ -38,6 +38,16 @@ jobs:
           token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 1
 
+      - name: Check branch is up to date with main
+        run: |
+          git fetch origin main
+          BEHIND=$(git rev-list HEAD..origin/main --count)
+          if [ "$BEHIND" != "0" ]; then
+            echo "::error::Branch is $BEHIND commit(s) behind main. Sync before reviewing."
+            exit 1
+          fi
+          echo "Branch is up to date — proceeding with review."
+
       - name: Check Anthropic API credit
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
@@ -181,3 +191,4 @@ jobs:
             exit 1
           fi
           echo "No blocking issues — PR is clear for merge."
+
