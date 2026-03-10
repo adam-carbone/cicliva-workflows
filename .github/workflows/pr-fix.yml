@@ -69,12 +69,13 @@ jobs:
 
       - name: Sync with main branch
         id: sync
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           git config user.email "agent@domiva.app"
           git config user.name "Domiva Life Agent"
-          git fetch origin main
 
-          BEHIND=$(git rev-list HEAD..origin/main --count)
+          BEHIND=$(gh api repos/${{ inputs.repo }}/compare/${{ inputs.head_branch }}...main --jq '.behind_by')
           if [ "$BEHIND" = "0" ]; then
             echo "Branch is up to date with main."
             echo "has_conflicts=false" >> $GITHUB_ENV
@@ -82,6 +83,7 @@ jobs:
           fi
 
           echo "Branch is $BEHIND commit(s) behind main — merging..."
+          git fetch origin main
           if git merge origin/main --no-edit; then
             echo "Clean merge with main — pushing."
             git push origin HEAD
