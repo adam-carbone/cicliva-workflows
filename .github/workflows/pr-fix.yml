@@ -67,6 +67,32 @@ jobs:
         run: |
           gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --remove-label "ready to merge" 2>/dev/null || true
 
+      - name: Sync with main branch
+        id: sync
+        run: |
+          git config user.email "agent@domiva.app"
+          git config user.name "Domiva Life Agent"
+          git fetch origin main
+
+          BEHIND=$(git rev-list HEAD..origin/main --count)
+          if [ "$BEHIND" = "0" ]; then
+            echo "Branch is up to date with main."
+            echo "has_conflicts=false" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          echo "Branch is $BEHIND commit(s) behind main — merging..."
+          if git merge origin/main --no-edit; then
+            echo "Clean merge with main — pushing."
+            git push origin HEAD
+            echo "has_conflicts=false" >> $GITHUB_ENV
+          else
+            CONFLICT_FILES=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
+            echo "Conflicts detected in: $CONFLICT_FILES"
+            echo "has_conflicts=true" >> $GITHUB_ENV
+            echo "conflict_files=$CONFLICT_FILES" >> $GITHUB_ENV
+          fi
+
       - name: Set up Java 21
         if: inputs.stack == 'java'
         uses: actions/setup-java@v4
@@ -210,7 +236,7 @@ jobs:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           github_token: ${{ steps.bot-token.outputs.token }}
           allowed_bots: domiva-life-agent[bot]
-          claude_args: --max-turns 30 --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh api *),${{ inputs.stack == 'java' && 'Bash(gradle build),Bash(gradle test),Bash(gradle compileJava)' || 'Bash(flutter pub get),Bash(dart run build_runner:*),Bash(flutter test:*)' }}"
+          claude_args: --max-turns 30 --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git merge:*),Bash(git fetch:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh api *),${{ inputs.stack == 'java' && 'Bash(gradle build),Bash(gradle test),Bash(gradle compileJava)' || 'Bash(flutter pub get),Bash(dart run build_runner:*),Bash(flutter test:*)' }}"
           prompt: |
             You are the PR Fix Agent for this repository. This is fix attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of 3.
 
@@ -218,6 +244,8 @@ jobs:
             PR: #${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
             Branch: ${{ fromJSON(steps.ci_context.outputs.result).headBranch }}
             Triggered by: ${{ fromJSON(steps.ci_context.outputs.result).triggeredBy }}
+
+            ${{ env.has_conflicts == 'true' && format('## Merge Conflicts — Resolve First\nThis branch has unresolved conflicts with main. Resolve these before addressing anything else.\nConflict files: {0}\nFor each file: read the conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`), keep the version that aligns with this issue spec, `git add` each resolved file, then commit the resolution. Do not push until conflicts are fully resolved and tests pass.', env.conflict_files) || '' }}
 
             ## CI Status
             ${{ fromJSON(steps.ci_context.outputs.result).ciGreen && 'CI is passing.' || 'CI is FAILING. Fix all build and test errors first.' }}
@@ -255,5 +283,6 @@ jobs:
                  gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
 
             This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}. After ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }} attempts the agent stops and escalates to a human.
+
 
 
