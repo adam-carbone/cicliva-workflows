@@ -140,7 +140,7 @@ jobs:
               c.body.includes('<!-- fix-agent-run -->')
             ).length;
 
-            const maxComment = allComments.data.find(c => c.body && c.body.includes('<!-- fix-max-attempts:'));
+            const maxComment = allComments.data.filter(c => c.body && c.body.includes('<!-- fix-max-attempts:')).pop();
             let MAX_FIX_ATTEMPTS = BASE_MAX;
             if (maxComment) {
               const m = maxComment.body.match(/<!-- fix-max-attempts:(\d+) -->/);
@@ -255,4 +255,5 @@ jobs:
                  gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
 
             This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}. After ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }} attempts the agent stops and escalates to a human.
+
 
