@@ -90,7 +90,9 @@ jobs:
             - Optional refactors that do not affect correctness
             - Nice-to-have improvements
 
-            ## Step 2: Post a PR comment
+            ## Step 2: Post exactly ONE PR comment
+
+            Complete your full analysis before posting. Do not post a draft and revise — post once only.
 
             Run: gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body "..."
 
