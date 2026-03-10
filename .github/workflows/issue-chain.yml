@@ -3,7 +3,9 @@ name: Issue Orchestrator
 on:
   workflow_call:
     secrets:
-      github_token:
+      domiva_agent_app_id:
+        required: true
+      domiva_agent_private_key:
         required: true
 
 jobs:
@@ -12,10 +14,18 @@ jobs:
     permissions:
       issues: write
       pull-requests: read
+      id-token: write
     steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.domiva_agent_app_id }}
+          private-key: ${{ secrets.domiva_agent_private_key }}
+
       - name: Find closed issue and trigger next
         env:
-          GH_TOKEN: ${{ secrets.github_token }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           PR_BODY: ${{ github.event.pull_request.body }}
           REPO: ${{ github.repository }}
         run: |
