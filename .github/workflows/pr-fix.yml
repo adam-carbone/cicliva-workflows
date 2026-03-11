@@ -279,21 +279,25 @@ jobs:
 
             ## Instructions
             1. Read CLAUDE.md for project conventions
-            2. For each CI failure or BLOCKING issue, before writing any fix:
+            2. If `docs/adr/` exists, read all ADRs before touching anything — they document constraints and workarounds that explain why the code is the way it is. A fix that contradicts an ADR is likely wrong.
+            3. For each CI failure or BLOCKING issue, before writing any fix:
                - Read the full stack trace to find the exact failing line
                - Read the source file at that line
                - Read the test file to understand what it expects
                - Identify the exact mismatch — do not guess
-            3. Fix ALL CI failures (if any) — run `${{ inputs.test_command }}` to verify, fix any new failures, repeat until clean
-            4. Fix ONLY the BLOCKING review findings (if any) — skip nits entirely
-            5. **Do NOT commit or push until the full test suite passes**
-            6. Commit and push your fixes to the branch
-            7. Dismiss any existing CHANGES_REQUESTED reviews:
+            4. Fix ALL CI failures (if any) — run `${{ inputs.test_command }}` to verify, fix any new failures, repeat until clean
+            5. Fix ONLY the BLOCKING review findings (if any) — skip nits entirely
+            6. For every non-obvious fix, add an inline comment that explains BOTH what the code does AND why it was written this way — especially for framework workarounds, behavioral constraints, or anything that looks wrong at first glance. Note that it was introduced or changed by the fix agent and why.
+            7. If your fix involves a cross-cutting decision or framework workaround that cannot be fully explained in an inline comment — create or update an ADR in `docs/adr/` following the format in CLAUDE.md
+            8. **Do NOT commit or push until the full test suite passes**
+            9. Commit and push your fixes to the branch
+            10. Dismiss any existing CHANGES_REQUESTED reviews:
                gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews | jq '.[] | select(.state == "CHANGES_REQUESTED") | .id' | xargs -I{} gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews/{}/dismissals --method PUT --field message="Issues addressed — re-review triggered by new push."
-            8. Post a comment on the PR that:
+            11. Post a comment on the PR that:
                - Starts with the hidden marker: `<!-- fix-agent-run -->`
                - Lists what was fixed and what (if anything) remains unresolved
-            9. If there was nothing to fix (no CI failures, no blocking reviews) and you made NO new commits:
+               - Notes any ADRs created or updated
+            12. If there was nothing to fix (no CI failures, no blocking reviews) and you made NO new commits:
                - Trigger PR Review to close the loop:
                  gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
 
