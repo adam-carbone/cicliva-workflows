@@ -119,6 +119,13 @@ jobs:
         run: flutter pub get
 
 
+      - name: Append shared Domiva conventions to CLAUDE.md
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          gh api repos/Domiva-Life/domiva-agent-lab/contents/CLAUDE-shared.md \
+            --jq '.content' | base64 -d >> CLAUDE.md
+
       - name: Check Anthropic API credit
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}

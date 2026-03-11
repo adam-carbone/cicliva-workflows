@@ -50,6 +50,13 @@ jobs:
           fi
           echo "Branch is up to date — proceeding with review."
 
+      - name: Append shared Domiva conventions to CLAUDE.md
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          gh api repos/Domiva-Life/domiva-agent-lab/contents/CLAUDE-shared.md \
+            --jq '.content' | base64 -d >> CLAUDE.md
+
       - name: Check Anthropic API credit
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
