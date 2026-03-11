@@ -42,7 +42,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
-          BEHIND=$(gh api repos/${{ inputs.repo }}/compare/${{ inputs.head_branch }}...main --jq '.behind_by')
+          BRANCH=$(gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json headRefName --jq '.headRefName')
+          BEHIND=$(gh api repos/${{ inputs.repo }}/compare/${BRANCH}...main --jq '.behind_by')
           if [ "$BEHIND" != "0" ]; then
             echo "::error::Branch is $BEHIND commit(s) behind main. Sync before reviewing."
             exit 1
