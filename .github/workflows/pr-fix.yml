@@ -185,39 +185,56 @@ jobs:
               return {};
             }
 
+            // Triggered by Build + Test: CI is red — fetch logs from the triggering run.
+            // Triggered by PR Review: CI was green when review ran — no build logs needed.
+            const ciGreen = triggeredBy === 'PR Review';
+
             let ciFailures = [];
-            if (triggeredBy === 'Build + Test') {
-              const jobs = await github.rest.actions.listJobsForWorkflowRun({
+            if (!ciGreen) {
+              // Always fetch from the actual latest failing Build + Test run, not just the
+              // triggering run_id, so we get current logs even if the trigger was stale.
+              const allRuns = await github.rest.actions.listWorkflowRunsForRepo({
                 owner, repo,
-                run_id: runId
+                branch: headBranch,
+                per_page: 20
               });
-              const failedJobs = jobs.data.jobs.filter(j => j.conclusion === 'failure');
-              for (const job of failedJobs) {
-                try {
-                  const logs = await github.rest.actions.downloadJobLogsForWorkflowRun({
-                    owner, repo,
-                    job_id: job.id
-                  });
-                  ciFailures.push({ job: job.name, logs: logs.data.slice(-5000) });
-                } catch(e) {}
+              const latestFailingBuild = allRuns.data.workflow_runs
+                .filter(r => r.name === 'Build + Test' && r.conclusion === 'failure')
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+              if (latestFailingBuild) {
+                const jobs = await github.rest.actions.listJobsForWorkflowRun({
+                  owner, repo,
+                  run_id: latestFailingBuild.id
+                });
+                const failedJobs = jobs.data.jobs.filter(j => j.conclusion === 'failure');
+                for (const job of failedJobs) {
+                  try {
+                    const logs = await github.rest.actions.downloadJobLogsForWorkflowRun({
+                      owner, repo,
+                      job_id: job.id
+                    });
+                    ciFailures.push({ job: job.name, logs: logs.data.slice(-5000) });
+                  } catch(e) {}
+                }
               }
             }
 
-            // Read blocking issues from the latest CHANGES_REQUESTED review body.
-            // The PR Review workflow writes the blocking issues verbatim into the review body,
-            // making this the reliable, machine-readable source of truth.
-            const reviewsResponse = await github.rest.pulls.listReviews({
-              owner, repo,
-              pull_number: prNumber
-            });
-            const latestChangesRequest = reviewsResponse.data
-              .filter(r => r.state === 'CHANGES_REQUESTED')
-              .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))[0];
-            const blockingReviews = (latestChangesRequest && latestChangesRequest.body)
-              ? [latestChangesRequest.body]
-              : [];
-
-            const ciGreen = triggeredBy === 'PR Review';
+            // Blocking reviews are only relevant when triggered by PR Review —
+            // PR Review runs after CI is green, so CHANGES_REQUESTED means code issues.
+            let blockingReviews = [];
+            if (ciGreen) {
+              const reviewsResponse = await github.rest.pulls.listReviews({
+                owner, repo,
+                pull_number: prNumber
+              });
+              const latestChangesRequest = reviewsResponse.data
+                .filter(r => r.state === 'CHANGES_REQUESTED')
+                .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))[0];
+              blockingReviews = (latestChangesRequest && latestChangesRequest.body)
+                ? [latestChangesRequest.body]
+                : [];
+            }
 
             core.setOutput('should_skip', 'false');
             return {
@@ -242,7 +259,7 @@ jobs:
           prompt: |
             You are the PR Fix Agent for this repository. This is fix attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}.
 
-            Your role is to repair — not rewrite. Fix it properly, not quickly. Before touching anything, understand why the reviewer or CI flagged it. The correct fix addresses the root cause, even if it takes more work than the minimum change.
+            Your role is to repair — not rewrite. Fix it properly, not quickly. Before touching anything, understand why CI or the reviewer flagged it. The correct fix addresses the root cause, even if it takes more work than the minimum change.
 
             ## PR Context
             PR: #${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
@@ -251,16 +268,13 @@ jobs:
 
             ${{ env.has_conflicts == 'true' && format('## Merge Conflicts — Resolve First\nThis branch has unresolved conflicts with main. Resolve these before addressing anything else.\nConflict files: {0}\nFor each file: read the conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`), keep the version that aligns with this issue spec, `git add` each resolved file, then commit the resolution. Do not push until conflicts are fully resolved and tests pass.', env.conflict_files) || '' }}
 
-            ## CI Status
-            ${{ fromJSON(steps.ci_context.outputs.result).ciGreen && 'CI is passing.' || 'CI is FAILING. Fix all build and test errors first.' }}
+            ${{ fromJSON(steps.ci_context.outputs.result).ciGreen && '' || '## CI Failures — Fix These First\nBuild + Test is FAILING. Your primary job is to make it pass.' }}
 
             ${{ fromJSON(steps.ci_context.outputs.result).ciFailures != '[]' && 'CI Failure Logs:' || '' }}
             ${{ toJSON(fromJSON(steps.ci_context.outputs.result).ciFailures) }}
 
-            ## PR Review — BLOCKING Issues Only
-            **You must ONLY fix BLOCKING issues. Do NOT touch nits.**
+            ${{ fromJSON(steps.ci_context.outputs.result).blockingReviews != '[]' && '## PR Review — BLOCKING Issues\nCI is passing. Fix these blocking review findings. Do NOT touch nits.' || '' }}
 
-            Blocking review findings (from the latest CHANGES_REQUESTED review):
             ${{ toJSON(fromJSON(steps.ci_context.outputs.result).blockingReviews) }}
 
             ## Instructions
@@ -270,19 +284,16 @@ jobs:
                - Read the source file at that line
                - Read the test file to understand what it expects
                - Identify the exact mismatch — do not guess
-            3. Fix ALL CI failures (if any)
-            4. Fix ONLY the BLOCKING review findings — skip nits entirely
-            5. Run `${{ inputs.test_command }}` to verify ALL tests pass
-               - If any tests fail, read the failure, fix it, and run again
-               - **Do NOT commit or push until the full test suite passes**
+            3. Fix ALL CI failures (if any) — run `${{ inputs.test_command }}` to verify, fix any new failures, repeat until clean
+            4. Fix ONLY the BLOCKING review findings (if any) — skip nits entirely
+            5. **Do NOT commit or push until the full test suite passes**
             6. Commit and push your fixes to the branch
             7. Dismiss any existing CHANGES_REQUESTED reviews:
                gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews | jq '.[] | select(.state == "CHANGES_REQUESTED") | .id' | xargs -I{} gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews/{}/dismissals --method PUT --field message="Issues addressed — re-review triggered by new push."
             8. Post a comment on the PR that:
                - Starts with the hidden marker: `<!-- fix-agent-run -->`
                - Lists what was fixed and what (if anything) remains unresolved
-
-            9. If all blocking issues were already resolved in prior commits and you made NO new commits:
+            9. If there was nothing to fix (no CI failures, no blocking reviews) and you made NO new commits:
                - Trigger PR Review to close the loop:
                  gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
 
