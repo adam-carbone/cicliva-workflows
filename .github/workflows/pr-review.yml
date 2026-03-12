@@ -53,24 +53,31 @@ jobs:
           else
             # Sync first — no point reviewing stale code. Push triggers Build+Test which
             # restarts the full chain (Build+Test → PR Review → Fix Agent if needed).
+            # gh api exits 0 for 2xx (201 merged, 204 already up-to-date) and non-zero for
+            # 4xx/5xx. We check the error output for "conflict" to distinguish merge failures
+            # from other API errors (e.g. token permission issues).
             echo "Branch is $BEHIND commit(s) behind main — syncing before review."
-            HTTP_STATUS=$(gh api repos/${{ inputs.repo }}/merges \
+            MERGE_RESPONSE=$(gh api repos/${{ inputs.repo }}/merges \
               --method POST \
               -f base="$BRANCH" \
               -f head=main \
-              -f commit_message="chore: sync with main before review" \
-              -w "%{http_code}" -o /dev/null 2>/dev/null || echo "error")
+              -f commit_message="chore: sync with main before review" 2>&1) && MERGE_OK="true" || MERGE_OK="false"
 
-            if [ "$HTTP_STATUS" = "201" ] || [ "$HTTP_STATUS" = "204" ]; then
+            if [ "$MERGE_OK" = "true" ]; then
               echo "Synced — standing down. Build+Test will rerun and restart the chain."
               echo "needs_sync=true" >> $GITHUB_OUTPUT
-            else
-              # Conflicts — signal via label so Fix Agent picks it up through normal chain.
+            elif echo "$MERGE_RESPONSE" | grep -qi "merge conflict\|conflict"; then
+              # Real conflict — signal via label so Fix Agent picks it up through normal chain.
               # Exit 0 so the workflow doesn't appear as a spurious failure.
               echo "Merge conflicts detected — adding merge-conflict label for Fix Agent to resolve."
               gh label create "merge-conflict" --color "B60205" --repo ${{ inputs.repo }} 2>/dev/null || true
               gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --add-label "merge-conflict"
               echo "needs_sync=true" >> $GITHUB_OUTPUT
+            else
+              # Unexpected API error — log it and proceed to review on existing code rather
+              # than falsely signaling a conflict.
+              echo "::warning::Merge API returned unexpected error: $MERGE_RESPONSE"
+              echo "needs_sync=false" >> $GITHUB_OUTPUT
             fi
           fi
 
