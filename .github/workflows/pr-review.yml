@@ -33,51 +33,54 @@ jobs:
           private-key: ${{ secrets.domiva_agent_private_key }}
           owner: Domiva-Life
 
-      - name: Checkout repository
+      - name: Get PR head branch
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          BRANCH=$(gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json headRefName --jq '.headRefName')
+          echo "head_branch=$BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
           token: ${{ steps.bot-token.outputs.token }}
-          fetch-depth: 1
+          repository: ${{ inputs.repo }}
+          ref: ${{ steps.pr-info.outputs.head_branch }}
+          fetch-depth: 0
 
       - name: Check branch is up to date with main
         id: staleness
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
-          BRANCH=$(gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json headRefName --jq '.headRefName')
-          BEHIND=$(gh api repos/${{ inputs.repo }}/compare/${BRANCH}...main --jq '.behind_by')
+          git config user.email "agent@domiva.app"
+          git config user.name "Domiva Life Agent"
+          git fetch origin main
+
+          BEHIND=$(git rev-list --count HEAD..origin/main)
 
           if [ "$BEHIND" = "0" ]; then
             echo "Branch is up to date — proceeding with review."
             echo "needs_sync=false" >> $GITHUB_OUTPUT
           else
-            # Sync first — no point reviewing stale code. Push triggers Build+Test which
-            # restarts the full chain (Build+Test → PR Review → Fix Agent if needed).
-            # gh api exits 0 for 2xx (201 merged, 204 already up-to-date) and non-zero for
-            # 4xx/5xx. We check the error output for "conflict" to distinguish merge failures
-            # from other API errors (e.g. token permission issues).
+            # Sync first — no point reviewing stale code. The push triggers Build+Test which
+            # restarts the full chain naturally (Build+Test → PR Review → Fix Agent if needed).
+            # Use git directly rather than the GitHub Merges API — the API can silently no-op
+            # even when the branch is behind; git merge is reliable and gives clear conflict output.
             echo "Branch is $BEHIND commit(s) behind main — syncing before review."
-            MERGE_RESPONSE=$(gh api repos/${{ inputs.repo }}/merges \
-              --method POST \
-              -f base="$BRANCH" \
-              -f head=main \
-              -f commit_message="chore: sync with main before review" 2>&1) && MERGE_OK="true" || MERGE_OK="false"
-
-            if [ "$MERGE_OK" = "true" ]; then
+            if git merge origin/main --no-edit; then
+              git push origin HEAD
               echo "Synced — standing down. Build+Test will rerun and restart the chain."
               echo "needs_sync=true" >> $GITHUB_OUTPUT
-            elif echo "$MERGE_RESPONSE" | grep -qi "merge conflict\|conflict"; then
-              # Real conflict — signal via label so Fix Agent picks it up through normal chain.
-              # Exit 0 so the workflow doesn't appear as a spurious failure.
+            else
+              git merge --abort
+              # Real conflict — signal via label so Fix Agent picks it up through the normal chain.
+              # Exit 0 so this workflow doesn't appear as a spurious failure.
               echo "Merge conflicts detected — adding merge-conflict label for Fix Agent to resolve."
               gh label create "merge-conflict" --color "B60205" --repo ${{ inputs.repo }} 2>/dev/null || true
               gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --add-label "merge-conflict"
               echo "needs_sync=true" >> $GITHUB_OUTPUT
-            else
-              # Unexpected API error — log it and proceed to review on existing code rather
-              # than falsely signaling a conflict.
-              echo "::warning::Merge API returned unexpected error: $MERGE_RESPONSE"
-              echo "needs_sync=false" >> $GITHUB_OUTPUT
             fi
           fi
 
