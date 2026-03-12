@@ -2,7 +2,9 @@
 
 This file is the single source of truth for conventions shared across all Domiva repos.
 - Locally: referenced via `@` import in each repo's `CLAUDE.md`
-- CI: fetched from `Domiva-Life/domiva-agent-lab` by each agent workflow before Claude runs
+- CI: fetched from `Domiva-Life/domiva-workflows` by each agent workflow before Claude runs
+
+Architectural decisions about the agent infrastructure are documented in `docs/adr/` in the `domiva-workflows` repo. If you are modifying CI workflows or agent behavior, read those ADRs first.
 
 ## Agent behavior
 Agents must:
