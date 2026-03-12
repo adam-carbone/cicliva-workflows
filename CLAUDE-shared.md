@@ -68,6 +68,7 @@ Create an ADR when:
 - Write useful code comments explaining both what the code does and why
 - Prefer UUID identifiers for entities
 - Keep domain logic organized and modular
+- Use `Instant` for all timestamp fields and `TIMESTAMPTZ` for all timestamp columns in migrations — never `LocalDateTime` or `TIMESTAMP` (see ADR 002)
 
 ## Frontend conventions
 - Keep route files thin
