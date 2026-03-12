@@ -39,18 +39,42 @@ jobs:
           fetch-depth: 1
 
       - name: Check branch is up to date with main
+        id: staleness
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           BRANCH=$(gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json headRefName --jq '.headRefName')
           BEHIND=$(gh api repos/${{ inputs.repo }}/compare/${BRANCH}...main --jq '.behind_by')
-          if [ "$BEHIND" != "0" ]; then
-            echo "::error::Branch is $BEHIND commit(s) behind main. Sync before reviewing."
-            exit 1
+
+          if [ "$BEHIND" = "0" ]; then
+            echo "Branch is up to date — proceeding with review."
+            echo "needs_sync=false" >> $GITHUB_OUTPUT
+          else
+            # Sync first — no point reviewing stale code. Push triggers Build+Test which
+            # restarts the full chain (Build+Test → PR Review → Fix Agent if needed).
+            echo "Branch is $BEHIND commit(s) behind main — syncing before review."
+            HTTP_STATUS=$(gh api repos/${{ inputs.repo }}/merges \
+              --method POST \
+              -f base="$BRANCH" \
+              -f head=main \
+              -f commit_message="chore: sync with main before review" \
+              -w "%{http_code}" -o /dev/null 2>/dev/null || echo "error")
+
+            if [ "$HTTP_STATUS" = "201" ] || [ "$HTTP_STATUS" = "204" ]; then
+              echo "Synced — standing down. Build+Test will rerun and restart the chain."
+              echo "needs_sync=true" >> $GITHUB_OUTPUT
+            else
+              # Conflicts — signal via label so Fix Agent picks it up through normal chain.
+              # Exit 0 so the workflow doesn't appear as a spurious failure.
+              echo "Merge conflicts detected — adding merge-conflict label for Fix Agent to resolve."
+              gh label create "merge-conflict" --color "B60205" --repo ${{ inputs.repo }} 2>/dev/null || true
+              gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --add-label "merge-conflict"
+              echo "needs_sync=true" >> $GITHUB_OUTPUT
+            fi
           fi
-          echo "Branch is up to date — proceeding with review."
 
       - name: Append shared Domiva conventions to CLAUDE.md
+        if: steps.staleness.outputs.needs_sync == 'false'
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
@@ -58,6 +82,7 @@ jobs:
             --jq '.content' | base64 -d >> CLAUDE.md
 
       - name: Check Anthropic API credit
+        if: steps.staleness.outputs.needs_sync == 'false'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
         run: |
@@ -78,6 +103,7 @@ jobs:
           echo "Anthropic API key OK"
 
       - name: Review PR
+        if: steps.staleness.outputs.needs_sync == 'false'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
@@ -153,6 +179,7 @@ jobs:
           claude_args: --allowedTools "Write,Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*)"
 
       - name: Post PR comment
+        if: steps.staleness.outputs.needs_sync == 'false'
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
@@ -163,6 +190,7 @@ jobs:
           gh pr comment ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --body-file /tmp/pr-review.md
 
       - name: Submit formal review
+        if: steps.staleness.outputs.needs_sync == 'false'
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
@@ -175,7 +203,7 @@ jobs:
             --input /tmp/review-payload.json
 
       - name: Update ready-to-merge label
-        if: always()
+        if: always() && steps.staleness.outputs.needs_sync == 'false'
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
@@ -199,7 +227,7 @@ jobs:
           echo "has_blocking=$HAS_BLOCKING" >> $GITHUB_ENV
 
       - name: Fail check if blocking issues found
-        if: always()
+        if: always() && steps.staleness.outputs.needs_sync == 'false'
         run: |
           if [ "${has_blocking}" != "0" ]; then
             echo "::error::PR Review found blocking issues. Fix them before merging."
