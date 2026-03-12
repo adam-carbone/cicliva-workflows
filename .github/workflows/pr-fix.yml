@@ -124,7 +124,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
-          gh api repos/Domiva-Life/domiva-agent-lab/contents/CLAUDE-shared.md \
+          gh api repos/Domiva-Life/domiva-workflows/contents/CLAUDE-shared.md \
             --jq '.content' | base64 -d >> CLAUDE.md
 
       - name: Check Anthropic API credit
