@@ -22,6 +22,7 @@ jobs:
         with:
           app-id: ${{ secrets.domiva_agent_app_id }}
           private-key: ${{ secrets.domiva_agent_private_key }}
+          owner: Domiva-Life
 
       - name: Find closed issue and trigger next
         env:
@@ -38,8 +39,15 @@ jobs:
           ISSUE_BODY=$(gh api repos/$REPO/issues/$CLOSED_ISSUE --jq '.body')
           NEXT_ISSUE=$(echo "$ISSUE_BODY" | grep -oE '\*\*Next:\*\* #[0-9]+' | grep -oE '[0-9]+' | head -1)
           if [ -z "$NEXT_ISSUE" ]; then
-            echo "Issue #$CLOSED_ISSUE has no Next: reference — end of chain."
-            exit 0
+            # No explicit Next: — fall back to the lowest-numbered open issue.
+            # This keeps the chain moving without requiring every issue to declare its successor.
+            echo "Issue #$CLOSED_ISSUE has no Next: reference — looking for next open issue."
+            NEXT_ISSUE=$(gh issue list --repo $REPO --state open --json number --jq '[.[].number] | sort | .[0]')
+            if [ -z "$NEXT_ISSUE" ] || [ "$NEXT_ISSUE" = "null" ]; then
+              echo "No open issues remain — chain complete."
+              exit 0
+            fi
+            echo "No explicit Next: found — defaulting to lowest open issue #$NEXT_ISSUE"
           fi
           echo "Triggering next issue: #$NEXT_ISSUE"
           gh api repos/$REPO/issues/$NEXT_ISSUE/comments \
