@@ -262,7 +262,7 @@ jobs:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           github_token: ${{ steps.bot-token.outputs.token }}
           allowed_bots: domiva-life-agent[bot]
-          claude_args: --max-turns 30 --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git merge:*),Bash(git fetch:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh api *),${{ inputs.stack == 'java' && 'Bash(gradle build),Bash(gradle test),Bash(gradle compileJava)' || 'Bash(flutter pub get),Bash(dart run build_runner:*),Bash(flutter test:*)' }}"
+          claude_args: --max-turns 50 --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git merge:*),Bash(git fetch:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh api *),${{ inputs.stack == 'java' && 'Bash(gradle build),Bash(gradle test),Bash(gradle compileJava)' || 'Bash(flutter pub get),Bash(dart run build_runner:*),Bash(flutter test:*)' }}"
           prompt: |
             You are the PR Fix Agent for this repository. This is fix attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}.
 
