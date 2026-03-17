@@ -70,6 +70,20 @@ Create an ADR when:
 - Keep domain logic organized and modular
 - Use `Instant` for all timestamp fields and `TIMESTAMPTZ` for all timestamp columns in migrations — never `LocalDateTime` or `TIMESTAMP` (see ADR 002)
 
+### Database migrations
+
+**Before creating any migration file**, inspect the existing migrations to determine the correct version number. Never use a version number from the issue description — it may be stale by the time the issue is implemented.
+
+Required check (coding agent and fix agent both must do this before finishing):
+```
+ls api/src/main/resources/db/migration/
+```
+Find the highest existing `VN__*.sql` filename. Your new migration must be `V(N+1)__description.sql`.
+
+- Never create a migration with a version that already exists — Flyway will refuse to start
+- Never modify an existing migration file — create a new one instead
+- If the issue specifies a version number, treat it as a hint only; always verify against the actual files
+
 ## Frontend conventions
 - Keep route files thin
 - Organize frontend code by feature
