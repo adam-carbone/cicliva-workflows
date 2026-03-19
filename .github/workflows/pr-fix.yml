@@ -62,12 +62,13 @@ jobs:
           ref: ${{ inputs.head_branch }}
           fetch-depth: 0
 
-      - name: Remove ready-to-merge and merge-conflict labels
+      - name: Remove ready-to-merge, merge-conflict, and fix-requested labels
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --remove-label "ready to merge" 2>/dev/null || true
           gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --remove-label "merge-conflict" 2>/dev/null || true
+          gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --remove-label "fix-requested" 2>/dev/null || true
 
       - name: Sync with main branch
         id: sync
