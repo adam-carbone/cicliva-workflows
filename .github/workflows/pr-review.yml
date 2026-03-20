@@ -33,12 +33,6 @@ jobs:
           private-key: ${{ secrets.domiva_agent_private_key }}
           owner: Domiva-Life
 
-      - name: Remove review-ready label
-        env:
-          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
-        run: |
-          gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --remove-label "review-ready" 2>/dev/null || true
-
       - name: Get PR head branch
         id: pr-info
         env:
