@@ -2,6 +2,13 @@ name: Hello Reusable
 
 on:
   workflow_call:
+    secrets:
+      anthropic_api_key:
+        required: false
+      domiva_agent_app_id:
+        required: false
+      domiva_agent_private_key:
+        required: false
 
 jobs:
   hello:
