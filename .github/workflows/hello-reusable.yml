@@ -2,6 +2,10 @@ name: Hello Reusable
 
 on:
   workflow_call:
+    inputs:
+      pr_number:
+        required: false
+        type: string
     secrets:
       anthropic_api_key:
         required: false
@@ -14,4 +18,4 @@ jobs:
   hello:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Reusable workflow called successfully"
+      - run: echo "Reusable workflow called with pr_number=${{ inputs.pr_number }}"
