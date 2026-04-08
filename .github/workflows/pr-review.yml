@@ -237,6 +237,25 @@ jobs:
 
           echo "has_blocking=$HAS_BLOCKING" >> $GITHUB_ENV
 
+          # Write PR number to file for artifact upload below — Fix Agent needs it to know
+          # which PR to fix when triggered by this workflow's completion. PR Review always
+          # runs on main's context so head_branch in the workflow_run event is always 'main',
+          # making the PR number unresolvable from the event alone.
+          if [ "$HAS_BLOCKING" != "0" ]; then
+            echo "${{ inputs.pr_number }}" > pr-number.txt
+          fi
+
+      - name: Upload PR number for Fix Agent
+        # Artifacts uploaded by a reusable workflow are attached to the caller's run ID,
+        # which is what Fix Agent uses to retrieve it. Only uploaded when blocking issues exist.
+        if: always() && steps.staleness.outputs.needs_sync == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-number
+          path: pr-number.txt
+          if-no-files-found: ignore
+          retention-days: 1
+
       - name: Fail check if blocking issues found
         if: always() && steps.staleness.outputs.needs_sync == 'false'
         run: |
@@ -245,4 +264,3 @@ jobs:
             exit 1
           fi
           echo "No blocking issues — PR is clear for merge."
-
