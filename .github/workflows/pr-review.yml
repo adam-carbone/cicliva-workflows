@@ -12,9 +12,9 @@ on:
     secrets:
       anthropic_api_key:
         required: true
-      domiva_agent_app_id:
+      domiva_reviewer_app_id:
         required: true
-      domiva_agent_private_key:
+      domiva_reviewer_private_key:
         required: true
 
 jobs:
@@ -25,12 +25,12 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      - name: Generate bot token
+      - name: Generate reviewer token
         id: bot-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.domiva_agent_app_id }}
-          private-key: ${{ secrets.domiva_agent_private_key }}
+          app-id: ${{ secrets.domiva_reviewer_app_id }}
+          private-key: ${{ secrets.domiva_reviewer_private_key }}
           owner: Domiva-Life
 
       - name: Get PR head branch
@@ -55,7 +55,7 @@ jobs:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           git config user.email "agent@domiva.app"
-          git config user.name "Domiva Life Agent"
+          git config user.name "Domiva Reviewer"
           git fetch origin main
 
           BEHIND=$(git rev-list --count HEAD..origin/main)
@@ -119,7 +119,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           github_token: ${{ steps.bot-token.outputs.token }}
-          allowed_bots: domiva-life-agent[bot]
+          allowed_bots: domiva-reviewer[bot]
           prompt: |
             REPO: ${{ inputs.repo }}
             PR NUMBER: ${{ inputs.pr_number }}
