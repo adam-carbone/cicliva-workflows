@@ -145,6 +145,7 @@ jobs:
             - Style preferences or minor naming suggestions
             - Optional refactors that do not affect correctness
             - Nice-to-have improvements
+            Format each nit as `**NIT-N:**` where N is a sequential number starting at 1. Example: `**NIT-1:** Consider renaming...`
 
             ## Step 2: Write your findings to two output files
 

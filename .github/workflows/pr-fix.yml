@@ -295,7 +295,7 @@ jobs:
                - Read the test file to understand what it expects
                - Identify the exact mismatch — do not guess
             4. Fix ALL CI failures (if any) — run `${{ inputs.test_command }}` to verify, fix any new failures, repeat until clean
-            5. Fix ONLY the BLOCKING review findings (if any) — skip nits entirely
+            5. Fix ONLY the BLOCKING review findings (if any) — skip nits entirely, UNLESS a comment contains `<!-- fix-nit -->`. If you find a `<!-- fix-nit -->` comment, treat the nit described in it as blocking for this run and fix it in addition to any other blocking issues.
             6. For every non-obvious fix, add an inline comment that explains BOTH what the code does AND why it was written this way — especially for framework workarounds, behavioral constraints, or anything that looks wrong at first glance. Note that it was introduced or changed by the fix agent and why.
             7. If your fix involves a cross-cutting decision or framework workaround that cannot be fully explained in an inline comment — create or update an ADR in `docs/adr/` following the format in CLAUDE.md
             8. **Do NOT commit or push until the full test suite passes**
