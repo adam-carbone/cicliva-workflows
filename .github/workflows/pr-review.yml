@@ -189,7 +189,7 @@ jobs:
             (your blocking findings, or "None.")
 
             ### 🟡 NITS
-            (numbered list of nit findings. For any nit that became a GitHub Issue, append " → Issue #N" at the end of that item.)
+            (numbered list of nit findings, or "None." For any nit that became a GitHub Issue, append " → Issue #N" at the end of that item.)
 
             ### ✅ Looks Good
             - Bullet points for things done well
