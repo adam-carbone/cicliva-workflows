@@ -131,6 +131,10 @@ jobs:
             2. Run `gh pr diff ${{ inputs.pr_number }} --repo ${{ inputs.repo }}` to read the full diff
             3. Read `CLAUDE.md` for project conventions
             4. For each changed file in the diff, read the full file to understand surrounding context — not just the changed lines
+            5. Read the product roadmap and relevant feature specs from `Domiva-Life/domiva-product` to understand product direction:
+               - Always read: `gh api repos/Domiva-Life/domiva-product/contents/roadmap/overview.md --jq '.content' | base64 -d`
+               - For each domain touched by the PR (people, auth, calendar, etc.), read the matching feature file if it exists:
+                 `gh api repos/Domiva-Life/domiva-product/contents/features/{domain}.md --jq '.content' | base64 -d`
 
             ## Step 1: Analyze and categorize every finding
 
@@ -141,13 +145,39 @@ jobs:
             - Missing test coverage for a behavior change
             - Hard violation of CLAUDE.md conventions (e.g. missing UUID primary keys, modifying existing Flyway migrations)
 
-            **NIT** — informational only, never auto-fixed. Use for:
+            **NIT** — informational only. Use for:
             - Style preferences or minor naming suggestions
             - Optional refactors that do not affect correctness
             - Nice-to-have improvements
-            Format each nit as `**NIT-N:**` where N is a sequential number starting at 1. Example: `**NIT-1:** Consider renaming...`
+            Format nits as a numbered list starting at 1. Example:
+            ```
+            1. Consider renaming `foo` to `bar` for clarity.
+            2. The validation logic could be extracted into a helper.
+            ```
+            Humans can address individual nits with `/fix 2` or create issues with `/issue 2`.
 
-            ## Step 2: Write your findings to two output files
+            ## Step 2: Evaluate nits for automatic issue creation
+
+            For each nit, decide whether to create a GitHub Issue automatically. Create one if the nit represents:
+            - A real future implementation concern (e.g. a limit that will be hit as the product grows)
+            - A design gap or inconsistency with the product spec in domiva-product
+            - Something that requires non-trivial work and belongs on the backlog
+
+            Do NOT create an issue for:
+            - Pure style preferences (naming, formatting, whitespace)
+            - Trivial one-line refactors with no product impact
+            - Subjective preferences with no clear right answer
+
+            For each nit that qualifies, create an issue now:
+            ```
+            gh issue create --repo ${{ inputs.repo }} \
+              --title "<concise title>" \
+              --label "from-review" \
+              --body "<full context: what the issue is, why it matters, what implementation would look like, link to PR #${{ inputs.pr_number }}>"
+            ```
+            Note which nit numbers became issues so you can annotate each list item with " → Issue #N".
+
+            ## Step 3: Write your findings to two output files
 
             Complete your full analysis first. Then write BOTH files — the workflow will handle posting.
 
@@ -159,7 +189,7 @@ jobs:
             (your blocking findings, or "None.")
 
             ### 🟡 NITS
-            (your nit findings, or "None.")
+            (numbered list of nit findings, or "None." For any nit that became a GitHub Issue, append " → Issue #N" at the end of that item.)
 
             ### ✅ Looks Good
             - Bullet points for things done well
@@ -188,7 +218,7 @@ jobs:
             - The JSON body must be valid JSON — escape any double quotes inside the body string
             - You MUST write both files. The workflow will fail loudly if either is missing.
             - Do NOT post the comment or submit the review yourself — the workflow does that.
-          claude_args: --allowedTools "Write,Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*)"
+          claude_args: --allowedTools "Write,Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api *),Bash(gh issue create:*)"
 
       - name: Post PR comment
         if: steps.staleness.outputs.needs_sync == 'false'
