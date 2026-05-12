@@ -154,7 +154,7 @@ jobs:
             1. Consider renaming `foo` to `bar` for clarity.
             2. The validation logic could be extracted into a helper.
             ```
-            Humans can address individual nits with `/fix 2` or create issues with `/issue 2`.
+            Humans can address individual nits with `/fix 2`, create issues with `/issue 2`, or grant more Fix Agent attempts with `/extend` or `/extend N`.
 
             ## Step 2: Evaluate nits for automatic issue creation
 
