@@ -104,10 +104,10 @@ jobs:
         run: |
           gh api repos/Domiva-Life/domiva-workflows/contents/agent-learnings/cross-repo.md \
             --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
-          if [ -n "${{ inputs.stack }}" ]; then
-            gh api repos/Domiva-Life/domiva-workflows/contents/agent-learnings/${{ inputs.stack }}.md \
+          for STACK in ${{ inputs.stack }}; do
+            gh api repos/Domiva-Life/domiva-workflows/contents/agent-learnings/${STACK}.md \
               --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
-          fi
+          done
 
       - name: Check Anthropic API credit
         if: steps.staleness.outputs.needs_sync == 'false'
