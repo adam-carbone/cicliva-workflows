@@ -188,7 +188,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner, repo,
                 issue_number: prNumber,
-                body: `## PR Fix Agent — Escalating to Human\n\nThis PR has had ${fixAttempts} automated fix attempts and still has unresolved issues. **Human review required.**\n\nPlease inspect the remaining CI failures or blocking review findings and resolve them manually.\n\n> 💡 To grant more automated attempts, comment \`/fix\` (1 more) or \`/fix N\` for N more.`
+                body: `## PR Fix Agent — Escalating to Human\n\nThis PR has had ${fixAttempts} automated fix attempts and still has unresolved issues. **Human review required.**\n\nPlease inspect the remaining CI failures or blocking review findings and resolve them manually.\n\n> 💡 To grant more automated attempts, comment \`/extend\` (1 more) or \`/extend N\` for N more.`
               });
               core.setOutput('should_skip', 'true');
               return {};
