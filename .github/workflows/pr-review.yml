@@ -9,6 +9,11 @@ on:
       repo:
         required: true
         type: string
+      stack:
+        required: false
+        type: string
+        default: ''
+        description: "'java' or 'flutter' — used to fetch stack-specific agent learnings"
     secrets:
       anthropic_api_key:
         required: true
@@ -91,6 +96,18 @@ jobs:
         run: |
           gh api repos/Domiva-Life/domiva-workflows/contents/CLAUDE-shared.md \
             --jq '.content' | base64 -d >> CLAUDE.md
+
+      - name: Append agent learnings to CLAUDE.md
+        if: steps.staleness.outputs.needs_sync == 'false'
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          gh api repos/Domiva-Life/domiva-workflows/contents/agent-learnings/cross-repo.md \
+            --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
+          if [ -n "${{ inputs.stack }}" ]; then
+            gh api repos/Domiva-Life/domiva-workflows/contents/agent-learnings/${{ inputs.stack }}.md \
+              --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
+          fi
 
       - name: Check Anthropic API credit
         if: steps.staleness.outputs.needs_sync == 'false'

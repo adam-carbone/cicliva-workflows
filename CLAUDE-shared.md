@@ -93,3 +93,29 @@ Find the highest existing `VN__*.sql` filename. Your new migration must be `V(N+
 - GitHub Issues define the work
 - Claude implements approved issues
 - Pull requests are reviewed by a human before merge
+
+## Agent Learnings
+
+The files appended below this section (added by the workflow at runtime) record mistakes
+observed and corrected by Fix Agents across all Domiva repos. They are fetched from
+`Domiva-Life/domiva-workflows/agent-learnings/` and appended to this file before you run.
+
+**Read them.** They represent hard-won corrections — patterns the Coding Agent got wrong
+that required a Fix Agent to clean up. Each entry is a mistake made once so it never
+needs to be made again.
+
+**Priority order — learnings never override these:**
+1. ADRs in `docs/adr/` — authoritative architectural decisions, always take precedence
+2. CLAUDE.md conventions — project rules set by humans
+3. Agent learnings — observed mistake patterns, complementary to the above
+
+If a learning appears to conflict with an ADR or CLAUDE.md, follow the ADR or CLAUDE.md.
+If a learning rises to the level of an architectural decision, it should become an ADR —
+not stay as a learning entry.
+
+**Write to them** when you fix a recurring implementation mistake. If the pattern belongs
+to the language/framework (Java, Flutter, Node, TypeScript, etc.), write to the
+stack-specific file (e.g. `agent-learnings/java.md`, `agent-learnings/node.md`). If no
+file yet exists for the stack, create it following the same format as `cross-repo.md`.
+If the pattern applies broadly regardless of language, write to `cross-repo.md`. The write
+pattern and API command are documented at the top of each file.

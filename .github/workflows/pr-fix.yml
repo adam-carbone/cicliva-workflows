@@ -128,6 +128,15 @@ jobs:
           gh api repos/Domiva-Life/domiva-workflows/contents/CLAUDE-shared.md \
             --jq '.content' | base64 -d >> CLAUDE.md
 
+      - name: Append agent learnings to CLAUDE.md
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          gh api repos/Domiva-Life/domiva-workflows/contents/agent-learnings/cross-repo.md \
+            --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
+          gh api repos/Domiva-Life/domiva-workflows/contents/agent-learnings/${{ inputs.stack }}.md \
+            --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
+
       - name: Check Anthropic API credit
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
@@ -306,7 +315,14 @@ jobs:
                - Starts with the hidden marker: `<!-- fix-agent-run -->`
                - Lists what was fixed and what (if anything) remains unresolved
                - Notes any ADRs created or updated
-            12. If there was nothing to fix (no CI failures, no blocking reviews) and you made NO new commits:
+               - Notes any agent learnings written
+            12. After posting the fix comment, if you corrected a mistake that is likely to recur in future implementations, write a learning entry to the appropriate file in `domiva-workflows`:
+               - Use `agent-learnings/${{ inputs.stack }}.md` for language/framework-specific patterns (e.g. Spring Boot, Flyway, Flutter widgets, pub dependencies). If a file for this stack does not yet exist, create it following the same format as `cross-repo.md`.
+               - Use `agent-learnings/cross-repo.md` for general patterns (testing discipline, git hygiene, architecture, security) that apply regardless of language
+               - Do NOT write a learning if the issue was a one-off, already covered by an ADR or CLAUDE.md, or too vague to be actionable
+               - Do NOT write a learning that contradicts an ADR — promote it to an ADR instead if it rises to that level
+               - The write API pattern is documented at the top of each learnings file
+            14. If there was nothing to fix (no CI failures, no blocking reviews) and you made NO new commits:
                - Trigger PR Review to close the loop:
                  gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
 
