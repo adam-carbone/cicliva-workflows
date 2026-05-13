@@ -155,17 +155,50 @@ jobs:
 
             ## Step 1: Analyze and categorize every finding
 
-            **BLOCKING** — the PR Fix Agent will fix these automatically. Only use for:
-            - Incorrect behavior (does not match the issue spec)
-            - Logic flaw or bug that will cause failures in production
-            - Security vulnerability
-            - Missing test coverage for a behavior change
-            - Hard violation of CLAUDE.md conventions (e.g. missing UUID primary keys, modifying existing Flyway migrations)
+            **BLOCKING** — the PR Fix Agent will fix these automatically. Use for anything that would cause
+            incorrect behavior, silent failure, data loss, security exposure, or mislead a future maintainer
+            into breaking something. Specifically:
 
-            **NIT** — informational only. Use for:
-            - Style preferences or minor naming suggestions
-            - Optional refactors that do not affect correctness
-            - Nice-to-have improvements
+            Correctness:
+            - Incorrect behavior — does not match the issue spec, or breaks existing behavior (regression)
+            - Logic flaw or bug that produces wrong results or failures, including silent wrong behavior (not just crashes)
+            - Incomplete implementation that leaves the system in an inconsistent state
+            - Missing or incorrect error handling at a system boundary (unvalidated user input, swallowed exceptions that hide real failures)
+
+            Data integrity:
+            - Wrong nullability, missing database constraints, incorrect cascade or fetch behavior
+            - Type mismatch between application model and database schema
+
+            Tests:
+            - Missing test coverage for any behavior change — if behavior changed, a test must verify the new behavior
+            - Incorrect test assertions — a test that passes but does not actually verify the intended behavior gives false confidence and is worse than no test
+
+            Security:
+            - Authentication or authorization bypass
+            - Injection vulnerability (SQL, command, etc.)
+            - Sensitive data exposed in logs, responses, or error messages
+
+            Performance:
+            - N+1 query or unbounded query that will degrade under real load
+            - Synchronous blocking operation on a hot path that will cause latency or timeout issues
+
+            Documentation and maintainability:
+            - Code comment or inline documentation that is factually wrong or would lead a maintainer to use the feature incorrectly, causing broken behavior or silent failures
+            - Missing ADR for a cross-cutting decision or framework workaround that will confuse future engineers
+
+            Conventions:
+            - Hard violation of CLAUDE.md or an ADR (e.g. missing UUID primary keys, modifying existing Flyway migrations, contradicting a documented architectural decision)
+            - Breaking API contract (removing or changing a field/endpoint that callers depend on) without explicit versioning
+
+            **NIT** — informational only. The bar for a nit is: the code is correct and safe, but could be cleaner.
+            - Style preferences or minor naming suggestions that do not affect readability significantly
+            - Optional refactors that do not affect correctness, performance, or maintainability
+            - Redundant code that works correctly
+            - Theoretical edge cases that are extremely unlikely in practice and carry no risk of data loss or security exposure
+            - Nice-to-have improvements with no clear right answer
+
+            **When in doubt, prefer BLOCKING.** A missed blocker ships broken code. A false blocker costs one Fix Agent run.
+
             Format nits as a numbered list starting at 1. Example:
             ```
             1. Consider renaming `foo` to `bar` for clarity.
