@@ -1,0 +1,50 @@
+name: Parse Nit List
+description: >
+  Parse a nit list string like "1", "2-5", "1, 3-5, 7" into a sorted array of
+  integers. Enforces a max span of 19 per range. Used by fix-trigger.yml and
+  issue-trigger.yml in product repos — edit only here.
+
+inputs:
+  nit_list:
+    description: >
+      The raw nit list string extracted from the comment (e.g. "1", "3-5",
+      "1, 3-5, 7"). Pass only the nit portion — not the full comment.
+    required: true
+
+outputs:
+  nums:
+    description: JSON array of parsed nit numbers in ascending order, e.g. [1,3,4,5]
+    value: ${{ steps.parse.outputs.nums }}
+  oversized:
+    description: JSON array of range strings that exceeded the max span, e.g. ["20-50"]
+    value: ${{ steps.parse.outputs.oversized }}
+
+runs:
+  using: composite
+  steps:
+    - name: Parse
+      id: parse
+      shell: node {0}
+      env:
+        NIT_LIST: ${{ inputs.nit_list }}
+      run: |
+        const fs = require('fs');
+        const str = process.env.NIT_LIST || '';
+        const nums = new Set();
+        const oversized = [];
+        for (const part of str.split(',').map(s => s.trim()).filter(Boolean)) {
+          const range = part.match(/^(\d+)-(\d+)$/);
+          if (range) {
+            const from = parseInt(range[1]), to = parseInt(range[2]);
+            if (from <= to && (to - from) < 20) {
+              for (let i = from; i <= to; i++) nums.add(i);
+            } else if (from <= to) {
+              oversized.push(`${from}-${to}`);
+            }
+          } else if (/^\d+$/.test(part)) {
+            nums.add(parseInt(part));
+          }
+        }
+        const result = { nums: [...nums].sort((a, b) => a - b), oversized };
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `nums=${JSON.stringify(result.nums)}\n`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `oversized=${JSON.stringify(result.oversized)}\n`);
