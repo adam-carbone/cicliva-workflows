@@ -29,3 +29,10 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 `agent-learnings/java.md`.
 
 ---
+
+## bootBuildImage does not run tests
+**Repo:** domiva-cloud
+**PR:** #66
+**Date:** 2026-05-14
+**What went wrong:** The build workflow invoked `./gradlew bootBuildImage` alone, assuming it would run tests. Spring Boot's `bootBuildImage` depends on `bootJar` -> `classes` (compile only) - the `test` task is not in that dependency chain. Tests were silently skipped, and broken code could reach the container registry and trigger deployment.
+**Correct approach:** Always invoke `./gradlew test bootBuildImage` (both tasks together) to gate image publication on a green test suite. Never assume `bootBuildImage` implies testing.
