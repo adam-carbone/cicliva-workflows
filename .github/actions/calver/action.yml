@@ -1,0 +1,70 @@
+name: CalVer
+description: >
+  Computes a CalVer tag and version string from the current UTC time and a
+  commit hash. Formula: YYYY.WW.SSSSSS where SSSSSS = zero-padded seconds
+  since Monday 00:00:00 UTC (0–604799). Guaranteed unique within a week.
+  Tag format:     YYYY.WW.SSSSSS-HASH  (for container image tags)
+  Version format: YYYY.WW.SSSSSS+HASH  (for artifact versions / Gradle -Pversion)
+
+inputs:
+  hash:
+    description: The full commit SHA (e.g. github.sha). Truncated to 7 chars internally.
+    required: true
+
+outputs:
+  tag:
+    description: Image tag — YYYY.WW.SSSSSS-HASH (e.g. 2026.20.043221-a1b2c3d)
+    value: ${{ steps.calver.outputs.tag }}
+  version:
+    description: Artifact version — YYYY.WW.SSSSSS+HASH (e.g. 2026.20.043221+a1b2c3d)
+    value: ${{ steps.calver.outputs.version }}
+  year:
+    description: Four-digit UTC year (e.g. 2026)
+    value: ${{ steps.calver.outputs.year }}
+  week:
+    description: Two-digit ISO week number, zero-padded (e.g. 20)
+    value: ${{ steps.calver.outputs.week }}
+  seconds:
+    description: Six-digit seconds-within-week, zero-padded (e.g. 043221)
+    value: ${{ steps.calver.outputs.seconds }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute CalVer
+      id: calver
+      shell: node {0}
+      env:
+        INPUT_HASH: ${{ inputs.hash }}
+      run: |
+        const fs = require('fs');
+
+        const now = new Date();
+
+        // ISO week number (1–53)
+        const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+        const dayOfYear = Math.floor((now - startOfYear) / 86400000);
+        const startDow = startOfYear.getUTCDay() || 7; // 1=Mon..7=Sun
+        const week = Math.ceil((dayOfYear + startDow) / 7);
+
+        // Seconds since Monday 00:00:00 UTC this week
+        const dow = now.getUTCDay() || 7; // 1=Mon..7=Sun
+        const secondsSinceMidnight = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
+        const secondsInWeek = (dow - 1) * 86400 + secondsSinceMidnight;
+
+        const year    = now.getUTCFullYear();
+        const weekStr = String(week).padStart(2, '0');
+        const secStr  = String(secondsInWeek).padStart(6, '0');
+        const hash    = (process.env.INPUT_HASH || '').slice(0, 7);
+
+        const tag     = `${year}.${weekStr}.${secStr}-${hash}`;
+        const version = `${year}.${weekStr}.${secStr}+${hash}`;
+
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\n`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `year=${year}\n`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `week=${weekStr}\n`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `seconds=${secStr}\n`);
+
+        console.log(`CalVer tag:     ${tag}`);
+        console.log(`CalVer version: ${version}`);
