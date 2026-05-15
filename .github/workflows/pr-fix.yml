@@ -302,7 +302,7 @@ jobs:
 
             ${{ toJSON(fromJSON(steps.ci_context.outputs.result).blockingReviews) }}
 
-            ${{ inputs.feedback != '' && format('## Human Feedback\nThe human who triggered this fix run left the following guidance. Treat it as the highest-priority input — it overrides your own interpretation of what the fix should be:\n\n{0}', inputs.feedback) || '' }}
+            ${{ inputs.feedback != '' && format('## Human Feedback\nThe human who triggered this fix run left the following guidance. Treat it as the highest-priority input — it overrides your own interpretation of what the fix should be.\n\nIf the feedback spans multiple lines, the **first line is the topic** (the high-level focus area) and the **remaining lines are the detailed guidance**. Address the topic first, then apply the detailed guidance.\n\n{0}', inputs.feedback) || '' }}
 
             ## Instructions
             1. Read CLAUDE.md for project conventions

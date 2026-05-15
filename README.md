@@ -148,8 +148,8 @@ Post these as comments on any open PR in any repo using this pipeline:
 | `/re-review` | Triggers a fresh PR Review run — use after pushing fixes manually or when `CHANGES_REQUESTED` needs re-evaluation |
 | `/fix 2` | Asks the Fix Agent to address nit 2 from the review comment |
 | `/fix 1, 3-5` | Addresses multiple nits in one Fix Agent run |
-| `/fix 2  your feedback` | Fix nit 2 with inline guidance — agent treats feedback as highest-priority, overrides its own interpretation |
-| `/fix 2`<br>`Detailed body` | Fix nit 2 with multi-line feedback — body on subsequent lines is appended to any inline text |
+| `/fix 2  your feedback` | Fix nit 2 with inline guidance — agent treats it as highest-priority input |
+| `/fix 2  Token security`<br>`Detailed guidance body` | Fix nit 2 with a topic + guidance — inline text becomes the **topic**, subsequent lines become the **guidance** |
 | `/extend` | Grants 1 more Fix Agent attempt (default limit is 5) |
 | `/extend 3` | Grants 3 more Fix Agent attempts |
 | `@claude <instruction>` | Direct instruction to the Coding Agent — works on **issues** (agent implements and opens a PR) and **PRs** (agent reads the thread and pushes a follow-up commit) |
@@ -164,13 +164,21 @@ Standard — no feedback, agent uses its own judgment.
 ```
 /fix 2  Use SecureRandom not UUID — UUIDs are not cryptographically random
 ```
-Inline feedback on the same line (two or more spaces separate the nit list from feedback).
+Inline guidance only (no body follows) — entire inline text is treated as guidance.
 
 ```
-/fix 2  Use SecureRandom not UUID.randomUUID — not crypto random.
+/fix 2  Token security
+Use SecureRandom not UUID.randomUUID — not crypto random.
 Both shareToken and inviteeToken need this fix.
 ```
-Inline text and body lines are concatenated into one feedback block — no title/body distinction, it's all guidance.
+Topic + guidance — inline text (after two or more spaces) becomes the **topic**, subsequent lines become the **guidance**. The PR comment shows: **Topic:** Token security / **Guidance:** Use SecureRandom...
+
+```
+/fix 2
+Use SecureRandom not UUID.randomUUID — not crypto random.
+Both shareToken and inviteeToken need this fix.
+```
+Guidance body only (no inline text) — all lines treated as guidance.
 
 ---
 
