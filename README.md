@@ -139,6 +139,42 @@ When a PR merges to main, reads `Next: #N` from the closed issue body and posts 
 
 ---
 
+## PR Commands
+
+Post these as comments on any open PR in any repo using this pipeline:
+
+| Command | What it does |
+|---|---|
+| `/re-review` | Triggers a fresh PR Review run — use after pushing fixes manually or when `CHANGES_REQUESTED` needs re-evaluation |
+| `/fix 2` | Asks the Fix Agent to address nit 2 from the review comment |
+| `/fix 1, 3-5` | Addresses multiple nits in one Fix Agent run |
+| `/fix 2  your feedback` | Fix nit 2 with inline guidance — agent treats feedback as highest-priority, overrides its own interpretation |
+| `/fix 2  Title`<br>`Detailed body` | Fix nit 2 with title + multi-line body — first line after nit list = title, remaining lines = body |
+| `/extend` | Grants 1 more Fix Agent attempt (default limit is 5) |
+| `/extend 3` | Grants 3 more Fix Agent attempts |
+| `@claude <instruction>` | Direct instruction to the Coding Agent — reads full PR thread, pushes follow-up commit |
+
+**Feedback syntax for `/fix`:**
+
+```
+/fix 2
+```
+Standard — no feedback, agent uses its own judgment.
+
+```
+/fix 2  Use SecureRandom not UUID — UUIDs are not cryptographically random
+```
+Inline feedback on the same line (two or more spaces separate the nit list from feedback).
+
+```
+/fix 2  Token security
+Use SecureRandom not UUID.randomUUID — not crypto random.
+Both shareToken and inviteeToken need this fix.
+```
+Title on the first line, body on subsequent lines. All passed as a single feedback block to the agent.
+
+---
+
 ## Adding to a New Repo
 
 1. Create `.github/workflows/ci.yml` — your build and test CI (job must be named `build`, workflow named `Build + Test`)
