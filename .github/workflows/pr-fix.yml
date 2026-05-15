@@ -28,6 +28,11 @@ on:
       test_command:
         required: true
         type: string
+      feedback:
+        required: false
+        type: string
+        default: ''
+        description: 'Optional human feedback passed via /fix <nits> <feedback> — injected into the fix agent prompt'
     secrets:
       anthropic_api_key:
         required: true
@@ -296,6 +301,8 @@ jobs:
             ${{ fromJSON(steps.ci_context.outputs.result).blockingReviews != '[]' && '## PR Review — BLOCKING Issues\nCI is passing. Fix these blocking review findings. Do NOT touch nits.' || '' }}
 
             ${{ toJSON(fromJSON(steps.ci_context.outputs.result).blockingReviews) }}
+
+            ${{ inputs.feedback != '' && format('## Human Feedback\nThe human who triggered this fix run left the following guidance. Treat it as the highest-priority input — it overrides your own interpretation of what the fix should be:\n\n{0}', inputs.feedback) || '' }}
 
             ## Instructions
             1. Read CLAUDE.md for project conventions
