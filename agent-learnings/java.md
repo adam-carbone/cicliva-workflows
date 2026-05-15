@@ -36,3 +36,10 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-14
 **What went wrong:** The build workflow invoked `./gradlew bootBuildImage` alone, assuming it would run tests. Spring Boot's `bootBuildImage` depends on `bootJar` -> `classes` (compile only) - the `test` task is not in that dependency chain. Tests were silently skipped, and broken code could reach the container registry and trigger deployment.
 **Correct approach:** Always invoke `./gradlew test bootBuildImage` (both tasks together) to gate image publication on a green test suite. Never assume `bootBuildImage` implies testing.
+
+## Use MockEnvironment, not StandardEnvironment, in Spring unit tests
+**Repo:** domiva-cloud
+**PR:** #67
+**Date:** 2026-05-15
+**What went wrong:** SecretManagerResolverTest used `new StandardEnvironment()`, which inherits the OS process environment. When `GCP_PROJECT_ID` is set in the developer's shell or in a GCP-configured CI environment, Spring's relaxed binding maps it to `gcp.project-id`. This caused `fails_fast_when_project_id_is_missing` to silently bypass the fail-fast check and hit an unstubbed mock instead of throwing the expected `IllegalStateException`.
+**Correct approach:** Always use `new MockEnvironment()` (from `org.springframework.mock.env`) in Spring unit tests that need an `Environment`. `MockEnvironment` starts completely clean — no inherited OS env vars or system properties — so tests that deliberately omit a property reliably see it as absent regardless of the machine running the test.
