@@ -149,10 +149,10 @@ Post these as comments on any open PR in any repo using this pipeline:
 | `/fix 2` | Asks the Fix Agent to address nit 2 from the review comment |
 | `/fix 1, 3-5` | Addresses multiple nits in one Fix Agent run |
 | `/fix 2  your feedback` | Fix nit 2 with inline guidance — agent treats feedback as highest-priority, overrides its own interpretation |
-| `/fix 2  Title`<br>`Detailed body` | Fix nit 2 with title + multi-line body — first line after nit list = title, remaining lines = body |
+| `/fix 2`<br>`Detailed body` | Fix nit 2 with multi-line feedback — body on subsequent lines is appended to any inline text |
 | `/extend` | Grants 1 more Fix Agent attempt (default limit is 5) |
 | `/extend 3` | Grants 3 more Fix Agent attempts |
-| `@claude <instruction>` | Direct instruction to the Coding Agent — reads full PR thread, pushes follow-up commit |
+| `@claude <instruction>` | Direct instruction to the Coding Agent — works on **issues** (agent implements and opens a PR) and **PRs** (agent reads the thread and pushes a follow-up commit) |
 
 **Feedback syntax for `/fix`:**
 
@@ -167,11 +167,10 @@ Standard — no feedback, agent uses its own judgment.
 Inline feedback on the same line (two or more spaces separate the nit list from feedback).
 
 ```
-/fix 2  Token security
-Use SecureRandom not UUID.randomUUID — not crypto random.
+/fix 2  Use SecureRandom not UUID.randomUUID — not crypto random.
 Both shareToken and inviteeToken need this fix.
 ```
-Title on the first line, body on subsequent lines. All passed as a single feedback block to the agent.
+Inline text and body lines are concatenated into one feedback block — no title/body distinction, it's all guidance.
 
 ---
 
