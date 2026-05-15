@@ -147,6 +147,7 @@ Post these as comments on any open PR in any repo using this pipeline:
 |---|---|
 | `/re-review` | Triggers a fresh PR Review run — use after pushing fixes manually or when `CHANGES_REQUESTED` needs re-evaluation |
 | `/fix 2` | Asks the Fix Agent to address nit 2 from the review comment |
+| `/fix all` | Addresses every nit from the most recent review comment in one run |
 | `/fix 1, 3-5` | Addresses multiple nits in one Fix Agent run |
 | `/fix 2  your feedback` | Fix nit 2 with inline guidance — agent treats it as highest-priority input |
 | `/fix 2  Token security`<br>`Detailed guidance body` | Fix nit 2 with a topic + guidance — inline text becomes the **topic**, subsequent lines become the **guidance** |
