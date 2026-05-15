@@ -49,3 +49,10 @@ gh api repos/Domiva-Life/domiva-workflows/contents/agent-learnings/cross-repo.md
 ```
 
 ---
+
+## Pin third-party CI actions to commit SHAs
+**Repo:** domiva-cloud
+**PR:** #76
+**Date:** 2026-05-15
+**What went wrong:** dorny/test-reporter was referenced via mutable @v1 tag in a job with checks:write, pull-requests:write, and actions:write permissions — a supply-chain attack on the action repo could execute arbitrary code in CI with those elevated permissions.
+**Correct approach:** Always pin third-party GitHub Actions to an immutable commit SHA (e.g. `uses: owner/action@<commit-sha>  # vX.Y.Z`). Use an inline comment to document the human-readable version. Prefer the latest stable release over older major versions that no longer receive security fixes.
