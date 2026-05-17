@@ -54,3 +54,10 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-17
 **What went wrong:** A widget test used ensureVisible(find.text('Save changes')) to scroll a submit button into view inside a deep form. ListView builds children lazily — the button was not in the render tree until it scrolled into the viewport, so ensureVisible threw "No element". Replacing with scrollUntilVisible also failed because TextFormField(maxLines: 3) creates an internal Scrollable inside EditableText, making find.byType(Scrollable) ambiguous ("Too many elements").
 **Correct approach:** When a form with 5+ fields plus NavigationBar (80dp) and AppBar (56dp) must all fit in a 600dp viewport, set `tester.view.physicalSize = const Size(800, 1200)` and `tester.view.devicePixelRatio = 1.0` at the top of the test, with `addTearDown(tester.view.reset)`. This ensures all form items are in the render tree with no scrolling needed. Note: any TextFormField with maxLines > 1 always creates a second internal Scrollable even with empty text.
+
+## Placeholder navigation tests must be replaced when routes are wired
+**Repo:** domiva-mobile
+**PR:** #13
+**Date:** 2026-05-17
+**What went wrong:** Two tests in contacts_screen_test.dart used a bare MaterialApp (no GoRouter), causing context.push() to throw and fall into a catch block that showed a snackbar. The tests asserted the snackbar appeared, which was a valid placeholder before routes existed but became dead-code coverage once routes were wired -- the actual navigation path was completely untested.
+**Correct approach:** When routes are wired, update or replace any tests that assert fallback/snackbar behavior from the catch block. Use a GoRouter-wired test app (MaterialApp.router with route definitions mirroring production) and assert that tapping navigation triggers (FAB, list rows, etc.) renders the correct destination screen. Extract the shared router test app to test/helpers/ so it can be reused across test files without duplication.
