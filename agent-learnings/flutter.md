@@ -40,3 +40,17 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-17
 **What went wrong:** The release signingConfig set storeFile unconditionally, breaking `flutter run --release` locally because domiva-release.jks is never on developer machines (it is decoded from a CI secret at build time).
 **Correct approach:** Always guard the storeFile assignment with `if (keystoreFile.exists())` in signingConfigs.release, and select the signingConfig in the release buildType with a ternary: `file('domiva-release.jks').exists() ? signingConfigs.release : signingConfigs.debug`. This preserves local debug-signed release builds while CI still produces a properly signed AAB.
+
+## dorny/test-reporter v2+ renamed dart-test reporter to flutter-machine
+**Repo:** domiva-mobile
+**PR:** #13
+**Date:** 2026-05-17
+**What went wrong:** ci.yml used `reporter: dart-test` with dorny/test-reporter pinned to a v3.0.0 commit SHA. dart-test was the v1 reporter name; v2+ renamed it to flutter-machine. The action rejected the value at startup and the build step failed.
+**Correct approach:** Use `reporter: flutter-machine` for the output of `flutter test --machine`. If upgrading dorny/test-reporter across major versions, verify the reporter name is still valid — the mapping of Flutter output formats to reporter names can change between major versions.
+
+## Use a tall test viewport when form fields fill or exceed 800x600
+**Repo:** domiva-mobile
+**PR:** #13
+**Date:** 2026-05-17
+**What went wrong:** A widget test used ensureVisible(find.text('Save changes')) to scroll a submit button into view inside a deep form. ListView builds children lazily — the button was not in the render tree until it scrolled into the viewport, so ensureVisible threw "No element". Replacing with scrollUntilVisible also failed because TextFormField(maxLines: 3) creates an internal Scrollable inside EditableText, making find.byType(Scrollable) ambiguous ("Too many elements").
+**Correct approach:** When a form with 5+ fields plus NavigationBar (80dp) and AppBar (56dp) must all fit in a 600dp viewport, set `tester.view.physicalSize = const Size(800, 1200)` and `tester.view.devicePixelRatio = 1.0` at the top of the test, with `addTearDown(tester.view.reset)`. This ensures all form items are in the render tree with no scrolling needed. Note: any TextFormField with maxLines > 1 always creates a second internal Scrollable even with empty text.
