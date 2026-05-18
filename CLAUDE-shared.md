@@ -89,6 +89,38 @@ Find the highest existing `VN__*.sql` filename. Your new migration must be `V(N+
 - Organize frontend code by feature
 - Keep reusable primitives in shared areas only when truly shared
 
+## Commit message format
+
+All commits must use Conventional Commits format:
+
+```
+type(scope): short description
+```
+
+**Types:**
+- `feat` — new feature or behavior
+- `fix` — bug fix
+- `test` — adding or updating tests only
+- `refactor` — code change that neither fixes a bug nor adds a feature
+- `ci` — workflow or CI/CD changes
+- `docs` — documentation only
+- `chore` — dependency updates, config, tooling
+
+**Scope** is the feature area or domain being changed (e.g. `auth`, `contacts`, `calendar`, `people`, `config`). Use the tightest scope that accurately describes what changed.
+
+**Examples:**
+```
+feat(auth): add JWT refresh token rotation
+fix(contacts): correct null check in person matching
+test(calendar): add edge case for overlapping events
+ci: add test reporter to Build + Test workflow
+```
+
+Rules:
+- Description is lowercase, no trailing period
+- Keep the subject line under 72 characters
+- No Claude attribution in commit messages
+
 ## Workflow
 - GitHub Issues define the work
 - Claude implements approved issues
