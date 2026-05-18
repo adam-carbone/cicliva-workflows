@@ -110,14 +110,15 @@ type(scope): short description
 
 **Examples:**
 ```
-feat(auth): add JWT refresh token rotation
-fix(contacts): correct null check in person matching
-test(calendar): add edge case for overlapping events
+feat(#42): add JWT refresh token rotation
+fix(#38): correct null check in person matching
+test(#51): add edge case for overlapping events
 ci: add test reporter to Build + Test workflow
 ```
 
 Rules:
 - Description is lowercase, no trailing period
+- Use the GitHub issue number as the scope when the commit relates to an issue — e.g. `feat(#42): ...`. CI, docs, and chore commits without an associated issue may omit the scope or use a descriptive one.
 - Keep the subject line under 72 characters
 - No Claude attribution in commit messages
 
