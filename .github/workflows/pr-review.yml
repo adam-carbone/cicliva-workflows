@@ -127,14 +127,16 @@ jobs:
               # Add credit-hold label to prevent Fix Agent from retrying until credits are restored.
               gh label create "credit-hold" --color "E4E669" --repo ${{ inputs.repo }} 2>/dev/null || true
               gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --add-label "credit-hold" 2>/dev/null || true
+              CREDIT_HOLD_BODY="$(printf '%s\n' \
+                '<!-- credit-hold -->' \
+                '⚠️ **PR Review stopped — Anthropic API credits exhausted.**' \
+                '' \
+                'The agent cannot run until the credit balance is topped up. Once restored, remove the `credit-hold` label and comment `/re-review` to resume.' \
+                '' \
+                'Top up at: https://console.anthropic.com')"
               gh api repos/${{ inputs.repo }}/issues/${{ inputs.pr_number }}/comments \
                 --method POST \
-                --field body="<!-- credit-hold -->
-⚠️ **PR Review stopped — Anthropic API credits exhausted.**
-
-The agent cannot run until the credit balance is topped up. Once restored, remove the \`credit-hold\` label and comment \`/re-review\` to resume.
-
-Top up at: https://console.anthropic.com" 2>/dev/null || true
+                --field body="$CREDIT_HOLD_BODY" 2>/dev/null || true
               echo "::error::Anthropic API billing issue — credit balance too low. Top up at https://console.anthropic.com and retry."
               exit 1
             else
