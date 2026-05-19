@@ -147,6 +147,7 @@ jobs:
       - name: Check Anthropic API credit
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
           RESPONSE=$(curl -s --max-time 10 -X POST https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
@@ -155,6 +156,18 @@ jobs:
             -d '{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}')
           if echo "$RESPONSE" | grep -q '"type":"error"'; then
             if echo "$RESPONSE" | grep -qi "credit\|billing\|balance"; then
+              # Post comment so the PR is not left in a silent broken state.
+              # Add credit-hold label to prevent Fix Agent from retrying until credits are restored.
+              gh label create "credit-hold" --color "E4E669" --repo ${{ inputs.repo }} 2>/dev/null || true
+              gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --add-label "credit-hold" 2>/dev/null || true
+              gh api repos/${{ inputs.repo }}/issues/${{ inputs.pr_number }}/comments \
+                --method POST \
+                --field body="<!-- credit-hold -->
+⚠️ **PR Fix Agent stopped — Anthropic API credits exhausted.**
+
+The agent cannot run until the credit balance is topped up. Once restored, remove the \`credit-hold\` label and comment \`/fix\` or \`/extend\` to resume.
+
+Top up at: https://console.anthropic.com" 2>/dev/null || true
               echo "::error::Anthropic API billing issue — credit balance too low. Top up at https://console.anthropic.com and retry."
               exit 1
             else
@@ -181,6 +194,15 @@ jobs:
             const runId = parseInt(process.env.INPUT_RUN_ID);
             const repoFull = process.env.INPUT_REPO;
             const [owner, repo] = repoFull.split('/');
+
+            // Skip immediately if credit-hold label is present — credits were exhausted on a
+            // prior run. The label must be manually removed after topping up credits.
+            const prData = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
+            if (prData.data.labels.some(l => l.name === 'credit-hold')) {
+              core.setOutput('should_skip', 'true');
+              return {};
+            }
+
             // Read effective max from <!-- fix-max-attempts:N --> marker comment (set by /fix N)
             const BASE_MAX = 5;
 
