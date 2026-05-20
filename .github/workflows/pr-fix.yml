@@ -342,8 +342,8 @@ jobs:
             7. If your fix involves a cross-cutting decision or framework workaround that cannot be fully explained in an inline comment — create or update an ADR in `docs/adr/` following the format in CLAUDE.md
             8. **Do NOT commit or push until the full test suite passes**
             9. Commit and push your fixes to the branch
-            10. Dismiss any existing CHANGES_REQUESTED reviews:
-               gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews | jq '.[] | select(.state == "CHANGES_REQUESTED") | .id' | xargs -I{} gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews/{}/dismissals --method PUT --field message="Issues addressed — re-review triggered by new push."
+            10. Dismiss all existing reviews (both APPROVED and CHANGES_REQUESTED) — your commits make all prior reviews stale and a fresh review is required:
+               gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews | jq '.[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED") | .id' | xargs -I{} gh api repos/${{ inputs.repo }}/pulls/${{ fromJSON(steps.ci_context.outputs.result).prNumber }}/reviews/{}/dismissals --method PUT --field message="Fix Agent pushed new commits — prior review is stale, re-review required."
             11. Post a comment on the PR that:
                - Starts with the hidden marker: `<!-- fix-agent-run -->`
                - Lists what was fixed and what (if anything) remains unresolved
