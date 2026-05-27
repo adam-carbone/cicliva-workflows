@@ -192,6 +192,7 @@ jobs:
             - Authentication or authorization bypass
             - Injection vulnerability (SQL, command, etc.)
             - Sensitive data exposed in logs, responses, or error messages
+            - An unpinned third-party action at a mutable tag (`@v3`, `@v4`, etc.) in any workflow that holds `write` permissions (actions, checks, pull-requests, contents) — mutable tags are a supply-chain attack vector and pinning to a commit SHA is explicitly required by the cross-repo agent learning
 
             Performance:
             - N+1 query or unbounded query that will degrade under real load
@@ -204,6 +205,18 @@ jobs:
             Conventions:
             - Hard violation of CLAUDE.md or an ADR (e.g. missing UUID primary keys, modifying existing Flyway migrations, contradicting a documented architectural decision)
             - Breaking API contract (removing or changing a field/endpoint that callers depend on) without explicit versioning
+
+            CI and operations:
+            - A gitignored required asset or config file (e.g. `.env/dev.json`, keystore) with no CI step to create it — the workflow will fail on first run; this is incomplete implementation
+            - A CI workflow that can fail silently on the main branch with no notification mechanism — production distribution failures, expired secrets, or third-party API errors must surface somewhere (GitHub Issue, comment, or alert)
+            - Missing fast-fail guards for required secrets at system boundaries — if an unset secret produces a cryptic downstream error (e.g. Gradle signing failure instead of "ANDROID_KEYSTORE is not set"), an explicit guard is required
+
+            User experience:
+            - A UI state the user cannot exit — permanent loading spinner on failure, blank form with no error message — is a blocker regardless of how rare the triggering condition is; the user must always have a recovery path
+            - Silent exception handling (`catch` with only `debugPrint` or a no-op) at a user-visible boundary (auth, data load, save) where the user has no indication something went wrong
+
+            Tests:
+            - A PR whose description or commit message describes a bug fix with no regression test — bug fixes require a test that would have caught the bug
 
             **NIT** — informational only. The bar for a nit is: the code is correct and safe, but could be cleaner.
             - Style preferences or minor naming suggestions that do not affect readability significantly
