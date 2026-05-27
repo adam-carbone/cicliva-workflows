@@ -18,6 +18,7 @@ Agents must not:
 - introduce new frameworks without explicit instruction
 - modify hidden or unrelated files
 - change infrastructure or deployment behavior unless explicitly requested
+- modify `.github/workflows/` files — workflow changes are interactive and require human collaboration
 
 ## Documentation conventions
 
