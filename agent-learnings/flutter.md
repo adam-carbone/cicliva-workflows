@@ -89,3 +89,10 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-27
 **What went wrong:** distribute-ios.yml used `runs-on: macos-latest` (now macOS 15 / Xcode 16) and included an incorrect inline comment claiming altool was only deprecated for `--notarize-app`. In reality, Apple removed altool entirely in Xcode 16 — all subcommands including `--upload-app` for iOS IPA uploads are gone.
 **Correct approach:** Pin iOS distribution workflows that use `xcrun altool --upload-app` to `runs-on: macos-14` (Xcode 15) where altool is still present. Add a comment explaining the pin and the migration path (Fastlane `upload_to_testflight`) for when macos-14 runners are retired. Never write comments claiming altool deprecation is scoped only to notarization — the entire tool was removed in Xcode 16.
+
+## find.byType(ListView) matches hidden parent-route ListViews in GoRouter tests
+**Repo:** domiva-mobile
+**PR:** #13
+**Date:** 2026-05-27
+**What went wrong:** A create-mode test used tester.drag(find.byType(ListView), ...) to scroll the submit button into view. With GoRouter nested routes (initialLocation: '/contacts/new'), both the parent ContactsScreen (filter-chips ListView) and AddEditContactScreen (form ListView) are fully built in the widget tree simultaneously -- MaterialPage.maintainState is true. find.byType(ListView) matched two elements and tester.drag threw StateError: Expected exactly one matching element.
+**Correct approach:** Never use find.byType(ListView) for scrolling in a GoRouter test with nested routes -- the parent route's ListViews are also in the tree. Instead, use the tall-viewport pattern: set tester.view.physicalSize = const Size(800, 1200) and tester.view.devicePixelRatio = 1.0 at the top of the test (with addTearDown(tester.view.reset)). A tall viewport makes the submit button visible without any scrolling.
