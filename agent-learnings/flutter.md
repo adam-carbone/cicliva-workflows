@@ -82,3 +82,10 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-27
 **What went wrong:** distribute-ios.yml used runs-on: macos-latest and invoked xcrun altool --upload-app. An inline comment incorrectly claimed altool was only deprecated for --notarize-app and that iOS uploads remained supported. In fact, Apple removed altool entirely in Xcode 16. macos-latest now maps to macOS 15 / Xcode 16, so the upload step fails with "command not found".
 **Correct approach:** Pin the iOS distribution job to runs-on: macos-14 (Xcode 15) where altool still exists. Add a comment explaining the pin and documenting the migration path to Fastlane upload_to_testflight. Do NOT write comments claiming partial deprecation without verifying the exact scope of removal. See docs/adr/002-ios-distribution-altool-xcode16.md.
+
+## xcrun altool removed in Xcode 16 — pin distribute-ios to macos-14
+**Repo:** domiva-mobile
+**PR:** #35
+**Date:** 2026-05-27
+**What went wrong:** distribute-ios.yml used `runs-on: macos-latest` (now macOS 15 / Xcode 16) and included an incorrect inline comment claiming altool was only deprecated for `--notarize-app`. In reality, Apple removed altool entirely in Xcode 16 — all subcommands including `--upload-app` for iOS IPA uploads are gone.
+**Correct approach:** Pin iOS distribution workflows that use `xcrun altool --upload-app` to `runs-on: macos-14` (Xcode 15) where altool is still present. Add a comment explaining the pin and the migration path (Fastlane `upload_to_testflight`) for when macos-14 runners are retired. Never write comments claiming altool deprecation is scoped only to notarization — the entire tool was removed in Xcode 16.
