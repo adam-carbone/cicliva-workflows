@@ -75,3 +75,10 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-20
 **What went wrong:** distribute-android.yml was missing a step to create .env/dev.json before the build. The file is declared as a Flutter asset in pubspec.yaml but the .env/ directory is gitignored. ci.yml had the workaround but the distribution workflow did not, meaning flutter build appbundle --release would fail with a missing asset error on every push to main.
 **Correct approach:** Any workflow that runs a Flutter build (flutter build, flutter test, etc.) must create all gitignored asset files before running flutter pub get. Check pubspec.yaml assets: for gitignored paths and add a creation step to every workflow that builds. For production builds, use a secret (e.g. RELEASE_ENV_CONFIG) with a fallback to production-appropriate defaults (USE_MOCK: false).
+
+## xcrun altool removed in Xcode 16 — pin distribute workflow to macos-14
+**Repo:** domiva-mobile
+**PR:** #35
+**Date:** 2026-05-27
+**What went wrong:** distribute-ios.yml used runs-on: macos-latest and invoked xcrun altool --upload-app. An inline comment incorrectly claimed altool was only deprecated for --notarize-app and that iOS uploads remained supported. In fact, Apple removed altool entirely in Xcode 16. macos-latest now maps to macOS 15 / Xcode 16, so the upload step fails with "command not found".
+**Correct approach:** Pin the iOS distribution job to runs-on: macos-14 (Xcode 15) where altool still exists. Add a comment explaining the pin and documenting the migration path to Fastlane upload_to_testflight. Do NOT write comments claiming partial deprecation without verifying the exact scope of removal. See docs/adr/002-ios-distribution-altool-xcode16.md.
