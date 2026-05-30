@@ -103,3 +103,10 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-28
 **What went wrong:** ios/ExportOptions.plist with signingStyle=manual was added to fix headless CI signing, but CODE_SIGN_STYLE=Automatic remained in project.pbxproj. ExportOptions.plist only controls xcodebuild -exportArchive (the export phase); the xcodebuild archive phase (which runs first inside flutter build ipa) still used Automatic signing, causing xcodebuild to contact Apple's provisioning portal and fail on runners with no Apple ID session.
 **Correct approach:** Set CODE_SIGN_STYLE=Manual in ALL Xcode build configurations (Runner Debug/Release/Profile and RunnerTests Debug/Release/Profile) in ios/Runner.xcodeproj/project.pbxproj. ExportOptions.plist handles the export phase; the project file must handle the archive phase. Without CODE_SIGN_STYLE=Manual in the project, the archive step silently falls back to Automatic signing regardless of ExportOptions.plist.
+
+## Android package rename requires directory migration that sandbox cannot delete
+**Repo:** domiva-mobile
+**PR:** #43
+**Date:** 2026-05-30
+**What went wrong:** When renaming applicationId/namespace in build.gradle, the Kotlin source directory (e.g. com/domiva/mobile_application/) must also be renamed to match. The fix agent sandbox blocks file deletion (rm, git rm), so the old directory cannot be removed programmatically. Creating only the new file leaves a stale placeholder and cleared old file in the tree.
+**Correct approach:** Coding agents should handle Android package renames atomically using git mv (moves the file and tracks it in git). If a fix agent must handle it: (1) create the new MainActivity.kt at the correct path with the new package declaration, (2) overwrite the old file with only a comment (no class, no package declaration) to avoid a duplicate-class compile error, (3) add a prominent note in the PR comment that the old directory needs manual cleanup: git rm -r android/app/src/main/kotlin/com/
