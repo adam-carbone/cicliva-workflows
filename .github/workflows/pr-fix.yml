@@ -225,13 +225,25 @@ jobs:
             }
 
             if (fixAttempts >= MAX_FIX_ATTEMPTS) {
-              await github.rest.issues.createComment({
-                owner, repo,
-                issue_number: prNumber,
-                body: `## PR Fix Agent — Escalating to Human\n\nThis PR has had ${fixAttempts} automated fix attempts and still has unresolved issues. **Human review required.**\n\nPlease inspect the remaining CI failures or blocking review findings and resolve them manually.\n\n> 💡 To grant more automated attempts, comment \`/extend\` (1 more) or \`/extend N\` for N more.`
-              });
-              core.setOutput('should_skip', 'true');
-              return {};
+              if (triggeredBy === 'PR Review') {
+                // A human pushed new code, CI went green, and the review found blockers.
+                // Auto-extend by 1 so the fix agent gets at least one attempt on the new
+                // commit rather than immediately hitting the cap wall.
+                MAX_FIX_ATTEMPTS = fixAttempts + 1;
+                await github.rest.issues.createComment({
+                  owner, repo,
+                  issue_number: prNumber,
+                  body: `<!-- fix-max-attempts:${MAX_FIX_ATTEMPTS} -->\n🔄 **Fix attempt limit auto-extended to ${MAX_FIX_ATTEMPTS}** — new push detected after cap was reached. Giving Fix Agent one attempt to address the latest review findings.`
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner, repo,
+                  issue_number: prNumber,
+                  body: `## PR Fix Agent — Escalating to Human\n\nThis PR has had ${fixAttempts} automated fix attempts and still has unresolved issues. **Human review required.**\n\nPlease inspect the remaining CI failures or blocking review findings and resolve them manually.\n\n> 💡 To grant more automated attempts, comment \`/extend\` (1 more) or \`/extend N\` for N more.`
+                });
+                core.setOutput('should_skip', 'true');
+                return {};
+              }
             }
 
             // Triggered by Build + Test: CI is red — fetch logs from the triggering run.
