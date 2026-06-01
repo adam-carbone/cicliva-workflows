@@ -367,7 +367,7 @@ jobs:
 
             ## Instructions
             1. Read CLAUDE.md for project conventions
-            2. If `docs/adr/` exists, read all ADRs before touching anything — they document constraints and workarounds that explain why the code is the way it is. A fix that contradicts an ADR is likely wrong.
+            2. If `docs/agent-learnings/` exists, read all repo-level learnings before touching anything — they document constraints and workarounds specific to this codebase. A fix that contradicts a learning is likely wrong.
             3. Gather change context before touching any code:
                a. Run `gh pr diff ${{ fromJSON(steps.ci_context.outputs.result).prNumber }} --repo ${{ inputs.repo }}` to understand what this PR is changing and why
                b. Determine whether the PR touches product code (anything under `lib/`, `src/`, `app/`, backend domain packages, or similar source directories).
@@ -387,20 +387,18 @@ jobs:
             5. Fix ALL CI failures (if any) — run `${{ inputs.test_command }}` to verify, fix any new failures, repeat until clean
             6. Fix ONLY the BLOCKING review findings (if any) — skip nits entirely, UNLESS a comment contains `<!-- fix-nit -->`. If you find a `<!-- fix-nit -->` comment, treat the nit described in it as blocking for this run and fix it in addition to any other blocking issues.
             7. For every non-obvious fix, add an inline comment that explains BOTH what the code does AND why it was written this way — especially for framework workarounds, behavioral constraints, or anything that looks wrong at first glance. Note that it was introduced or changed by the fix agent and why.
-            8. If your fix involves a cross-cutting decision or framework workaround that cannot be fully explained in an inline comment — create or update an ADR in `docs/adr/` following the format in CLAUDE.md
-            9. **Do NOT commit or push until the full test suite passes**
-            10. Commit and push your fixes to the branch
-            11. Post a comment on the PR that:
+            8. **Do NOT commit or push until the full test suite passes**
+            9. Commit and push your fixes to the branch
+            10. Post a comment on the PR that:
                - Starts with the hidden marker: `<!-- fix-agent-run -->`
                - Lists what was fixed and what (if anything) remains unresolved
-               - Notes any ADRs created or updated
-               - Notes any agent learnings written
-            12. After posting the fix comment, if you corrected a mistake that is likely to recur in future implementations, write a learning entry to the appropriate file in `domiva-workflows`:
-               - Use `agent-learnings/${{ inputs.stack }}.md` for language/framework-specific patterns (e.g. Spring Boot, Flyway, Flutter widgets, pub dependencies). If a file for this stack does not yet exist, create it following the same format as `cross-repo.md`.
-               - Use `agent-learnings/cross-repo.md` for general patterns (testing discipline, git hygiene, architecture, security) that apply regardless of language
-               - Do NOT write a learning if the issue was a one-off, already covered by an ADR or CLAUDE.md, or too vague to be actionable
-               - Do NOT write a learning that contradicts an ADR — promote it to an ADR instead if it rises to that level
-               - The write API pattern is documented at the top of each learnings file
+               - Lists any learnings written and at which level (code/repo/org)
+            11. After posting the fix comment, write learnings for any mistake that is likely to recur. Use the narrowest scope that fits:
+               - **Code level** — add or update an inline comment explaining the constraint. Always do this first.
+               - **Repo level** — if the pattern is specific to this codebase and too complex for a comment, create or update `docs/agent-learnings/NNN-short-title.md` following the format in CLAUDE.md. Every repo-level learning must include a clear **Why** section explaining the underlying mechanism — a learning without a "why" is just a rule an agent will misapply.
+               - **Org level** — if the pattern would apply in any Domiva repo, write it to `domiva-workflows/agent-learnings/${{ inputs.stack }}.md` (language-specific) or `agent-learnings/cross-repo.md` (general). The write API pattern is documented at the top of each learnings file.
+               - Do NOT write a learning for a one-off mistake, something already covered in existing learnings, or anything too vague to be actionable.
+               - Do NOT write a learning that contradicts an existing one — if the existing learning is wrong, correct it and explain why the original was incorrect.
             14. If there was nothing to fix (no CI failures, no blocking reviews) and you made NO new commits:
                - Trigger PR Review to close the loop:
                  gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}

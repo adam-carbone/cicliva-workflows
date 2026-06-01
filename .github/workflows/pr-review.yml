@@ -207,10 +207,10 @@ jobs:
 
             Documentation and maintainability:
             - Code comment or inline documentation that is factually wrong or would lead a maintainer to use the feature incorrectly, causing broken behavior or silent failures
-            - Missing ADR for a cross-cutting decision or framework workaround that will confuse future engineers
+            - Missing repo-level learning (`docs/agent-learnings/`) for a framework workaround or architectural constraint that is non-obvious and likely to be revisited
 
             Conventions:
-            - Hard violation of CLAUDE.md or an ADR (e.g. missing UUID primary keys, modifying existing Flyway migrations, contradicting a documented architectural decision)
+            - Hard violation of CLAUDE.md or an existing agent learning (e.g. missing UUID primary keys, modifying existing Flyway migrations, contradicting a documented constraint)
             - Breaking API contract (removing or changing a field/endpoint that callers depend on) without explicit versioning
 
             CI and operations:
@@ -260,6 +260,16 @@ jobs:
               --body "<full context: what the issue is, why it matters, what implementation would look like, link to PR #${{ inputs.pr_number }}>"
             ```
             Note which nit numbers became issues so you can annotate each list item with " → Issue #N".
+
+            ## Step 2b: Validate any learnings written by the fix agent
+
+            If this PR's diff includes changes to `docs/agent-learnings/` or `domiva-workflows/agent-learnings/`, explicitly review each changed learning:
+            - Does it accurately describe the root cause, or just the symptom?
+            - Does it include a clear **Why** section explaining the underlying mechanism? A learning without "why" will be misapplied.
+            - Does it contradict any existing learning or established convention in CLAUDE.md?
+            - Is it narrow enough to be actionable, or so broad it will cause agents to over-apply it?
+
+            A learning that is wrong or misleading is worse than no learning — it will cause future agents to repeat the mistake with false confidence. Flag any learning that fails these checks as BLOCKING.
 
             ## Step 3: Write your findings to two output files
 
