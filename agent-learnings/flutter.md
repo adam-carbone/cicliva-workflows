@@ -97,12 +97,13 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **What went wrong:** A create-mode test used tester.drag(find.byType(ListView), ...) to scroll the submit button into view. With GoRouter nested routes (initialLocation: '/contacts/new'), both the parent ContactsScreen (filter-chips ListView) and AddEditContactScreen (form ListView) are fully built in the widget tree simultaneously -- MaterialPage.maintainState is true. find.byType(ListView) matched two elements and tester.drag threw StateError: Expected exactly one matching element.
 **Correct approach:** Never use find.byType(ListView) for scrolling in a GoRouter test with nested routes -- the parent route's ListViews are also in the tree. Instead, use the tall-viewport pattern: set tester.view.physicalSize = const Size(800, 1200) and tester.view.devicePixelRatio = 1.0 at the top of the test (with addTearDown(tester.view.reset)). A tall viewport makes the submit button visible without any scrolling.
 
-## ExportOptions.plist signingStyle does not override archive phase — set CODE_SIGN_STYLE=Manual in project.pbxproj
+## ExportOptions.plist signingStyle does not override archive phase — set CODE_SIGN_STYLE=Manual in Release and Profile configs only
 **Repo:** domiva-mobile
 **PR:** #35
 **Date:** 2026-05-28
 **What went wrong:** ios/ExportOptions.plist with signingStyle=manual was added to fix headless CI signing, but CODE_SIGN_STYLE=Automatic remained in project.pbxproj. ExportOptions.plist only controls xcodebuild -exportArchive (the export phase); the xcodebuild archive phase (which runs first inside flutter build ipa) still used Automatic signing, causing xcodebuild to contact Apple's provisioning portal and fail on runners with no Apple ID session.
-**Correct approach:** Set CODE_SIGN_STYLE=Manual in ALL Xcode build configurations (Runner Debug/Release/Profile and RunnerTests Debug/Release/Profile) in ios/Runner.xcodeproj/project.pbxproj. ExportOptions.plist handles the export phase; the project file must handle the archive phase. Without CODE_SIGN_STYLE=Manual in the project, the archive step silently falls back to Automatic signing regardless of ExportOptions.plist.
+**Correct approach:** Set CODE_SIGN_STYLE=Manual on the Runner **Release** and **Profile** build configurations only in ios/Runner.xcodeproj/project.pbxproj. Also set `"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution"` on those same two configs so the archive phase selects the distribution cert (not the development cert) when only an iPhone Distribution certificate is installed in CI.
+**Do NOT set Manual on the Debug config.** Debug uses Automatic signing for local development — `flutter run` on physical devices relies on Xcode managing the development profile automatically. Setting Manual on Debug without a PROVISIONING_PROFILE_SPECIFIER breaks local device builds. The distribute workflow only runs `--release`, so Debug signing is irrelevant to CI distribution.
 
 ## Android package rename requires directory migration that sandbox cannot delete
 **Repo:** domiva-mobile
