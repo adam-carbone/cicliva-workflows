@@ -225,15 +225,26 @@ jobs:
             }
 
             if (fixAttempts >= MAX_FIX_ATTEMPTS) {
+              // Check whether the most recent commit was pushed by a human (not the bot).
+              // Only auto-extend when a human has manually pushed new work — agent-pushed
+              // commits on a capped PR must still escalate, otherwise the cap is meaningless.
+              let isHumanPush = false;
               if (triggeredBy === 'PR Review') {
-                // A human pushed new code, CI went green, and the review found blockers.
-                // Auto-extend by 1 so the fix agent gets at least one attempt on the new
-                // commit rather than immediately hitting the cap wall.
+                const headCommit = await github.rest.repos.getCommit({
+                  owner, repo, ref: headBranch
+                });
+                const pusher = headCommit.data.author?.login ?? '';
+                isHumanPush = pusher !== 'github-actions[bot]';
+              }
+
+              if (isHumanPush) {
+                // Human pushed new code → CI green → review found blockers → at cap.
+                // Grant one more attempt so the new commit gets a fix chance.
                 MAX_FIX_ATTEMPTS = fixAttempts + 1;
                 await github.rest.issues.createComment({
                   owner, repo,
                   issue_number: prNumber,
-                  body: `<!-- fix-max-attempts:${MAX_FIX_ATTEMPTS} -->\n🔄 **Fix attempt limit auto-extended to ${MAX_FIX_ATTEMPTS}** — new push detected after cap was reached. Giving Fix Agent one attempt to address the latest review findings.`
+                  body: `<!-- fix-max-attempts:${MAX_FIX_ATTEMPTS} -->\n🔄 **Fix attempt limit auto-extended to ${MAX_FIX_ATTEMPTS}** — human push detected after cap was reached. Giving Fix Agent one attempt to address the latest review findings.`
                 });
               } else {
                 await github.rest.issues.createComment({
