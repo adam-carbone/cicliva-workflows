@@ -162,11 +162,17 @@ jobs:
             1. Run `gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }}` to get the PR title and linked issue
             2. Run `gh pr diff ${{ inputs.pr_number }} --repo ${{ inputs.repo }}` to read the full diff
             3. Read `CLAUDE.md` for project conventions
-            4. For each changed file in the diff, read the full file to understand surrounding context — not just the changed lines
-            5. Read the product roadmap and relevant feature specs from `Domiva-Life/domiva-product` to understand product direction:
-               - Always read: `gh api repos/Domiva-Life/domiva-product/contents/roadmap/overview.md --jq '.content' | base64 -d`
-               - For each domain touched by the PR (people, auth, calendar, etc.), read the matching feature file if it exists:
-                 `gh api repos/Domiva-Life/domiva-product/contents/features/{domain}.md --jq '.content' | base64 -d`
+            4. For each changed file in the diff, read the full file to understand surrounding context — not just the changed lines.
+               **Skip full-file reads for generated or config files that carry no product signal:**
+               - `*.pbxproj` — generated Xcode project config, often 1000+ lines; review the diff only
+               - `*.lock`, `pubspec.lock`, `Package.resolved` — dependency lock files; review the diff only
+               - `*.g.dart`, `*.freezed.dart`, `*.mocks.dart` — generated Dart code; review the diff only
+            5. Determine whether this PR touches product code (anything under `lib/`, `src/`, `app/`, backend domain packages, or similar source directories).
+               - If YES — read the product roadmap and relevant feature specs to understand product direction and validate the implementation against intent:
+                 - Always read: `gh api repos/Domiva-Life/domiva-product/contents/roadmap/overview.md --jq '.content' | base64 -d`
+                 - For each domain touched by the PR (people, auth, calendar, etc.), read the matching feature file if it exists:
+                   `gh api repos/Domiva-Life/domiva-product/contents/features/{domain}.md --jq '.content' | base64 -d`
+               - If NO (PR only touches `.github/`, `ios/`, `android/`, root config files, or build/CI infrastructure) — skip domiva-product reads entirely. There is no product feature context to validate against.
 
             ## Step 1: Analyze and categorize every finding
 
