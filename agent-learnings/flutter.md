@@ -41,12 +41,12 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **What went wrong:** The release signingConfig set storeFile unconditionally, breaking `flutter run --release` locally because domiva-release.jks is never on developer machines (it is decoded from a CI secret at build time).
 **Correct approach:** Always guard the storeFile assignment with `if (keystoreFile.exists())` in signingConfigs.release, and select the signingConfig in the release buildType with a ternary: `file('domiva-release.jks').exists() ? signingConfigs.release : signingConfigs.debug`. This preserves local debug-signed release builds while CI still produces a properly signed AAB.
 
-## dorny/test-reporter: correct reporter for Flutter is dart-json, not flutter-machine
+## dorny/test-reporter: dart-json is the correct reporter for flutter test --machine
 **Repo:** domiva-mobile
-**PR:** #13, #44
-**Date:** 2026-05-17, corrected 2026-05-31
-**What went wrong:** ci.yml used `reporter: dart-test`, which was wrong. A fix agent changed it to `reporter: flutter-machine`, which is also wrong — flutter-machine does not exist in any version of dorny/test-reporter. The action rejected the value at startup with "Input variable 'reporter' is set to invalid value 'flutter-machine'".
-**Correct approach:** Use `reporter: dart-json` for the output of `flutter test --machine`. This is the only valid Flutter reporter in dorny/test-reporter. Do not use dart-test or flutter-machine — neither exists.
+**PR:** #44
+**Date:** 2026-06-01
+**What went wrong:** The PR #13 fix agent changed `reporter: dart-test` to `reporter: flutter-machine`, believing v2+ renamed the reporter. But `flutter-machine` does not exist in any version of dorny/test-reporter — that fix introduced a new CI failure. The original learning was recorded as if `flutter-machine` were correct, which would cause any agent reading it to re-introduce the broken value.
+**Correct approach:** Use `reporter: dart-json` for the output of `flutter test --machine`. `flutter-machine` is not a valid reporter name in any version of dorny/test-reporter. The correct reporter for Flutter/Dart test machine output is `dart-json`.
 
 ## Use a tall test viewport when form fields fill or exceed 800x600
 **Repo:** domiva-mobile
@@ -75,3 +75,38 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-20
 **What went wrong:** distribute-android.yml was missing a step to create .env/dev.json before the build. The file is declared as a Flutter asset in pubspec.yaml but the .env/ directory is gitignored. ci.yml had the workaround but the distribution workflow did not, meaning flutter build appbundle --release would fail with a missing asset error on every push to main.
 **Correct approach:** Any workflow that runs a Flutter build (flutter build, flutter test, etc.) must create all gitignored asset files before running flutter pub get. Check pubspec.yaml assets: for gitignored paths and add a creation step to every workflow that builds. For production builds, use a secret (e.g. RELEASE_ENV_CONFIG) with a fallback to production-appropriate defaults (USE_MOCK: false).
+
+## xcrun altool removed in Xcode 16 — pin distribute workflow to macos-14
+**Repo:** domiva-mobile
+**PR:** #35
+**Date:** 2026-05-27
+**What went wrong:** distribute-ios.yml used runs-on: macos-latest and invoked xcrun altool --upload-app. An inline comment incorrectly claimed altool was only deprecated for --notarize-app and that iOS uploads remained supported. In fact, Apple removed altool entirely in Xcode 16. macos-latest now maps to macOS 15 / Xcode 16, so the upload step fails with "command not found".
+**Correct approach:** Pin the iOS distribution job to runs-on: macos-14 (Xcode 15) where altool still exists. Add a comment explaining the pin and documenting the migration path to Fastlane upload_to_testflight. Do NOT write comments claiming partial deprecation without verifying the exact scope of removal. See docs/adr/002-ios-distribution-altool-xcode16.md.
+
+## xcrun altool removed in Xcode 16 — pin distribute-ios to macos-14
+**Repo:** domiva-mobile
+**PR:** #35
+**Date:** 2026-05-27
+**What went wrong:** distribute-ios.yml used `runs-on: macos-latest` (now macOS 15 / Xcode 16) and included an incorrect inline comment claiming altool was only deprecated for `--notarize-app`. In reality, Apple removed altool entirely in Xcode 16 — all subcommands including `--upload-app` for iOS IPA uploads are gone.
+**Correct approach:** Pin iOS distribution workflows that use `xcrun altool --upload-app` to `runs-on: macos-14` (Xcode 15) where altool is still present. Add a comment explaining the pin and the migration path (Fastlane `upload_to_testflight`) for when macos-14 runners are retired. Never write comments claiming altool deprecation is scoped only to notarization — the entire tool was removed in Xcode 16.
+
+## find.byType(ListView) matches hidden parent-route ListViews in GoRouter tests
+**Repo:** domiva-mobile
+**PR:** #13
+**Date:** 2026-05-27
+**What went wrong:** A create-mode test used tester.drag(find.byType(ListView), ...) to scroll the submit button into view. With GoRouter nested routes (initialLocation: '/contacts/new'), both the parent ContactsScreen (filter-chips ListView) and AddEditContactScreen (form ListView) are fully built in the widget tree simultaneously -- MaterialPage.maintainState is true. find.byType(ListView) matched two elements and tester.drag threw StateError: Expected exactly one matching element.
+**Correct approach:** Never use find.byType(ListView) for scrolling in a GoRouter test with nested routes -- the parent route's ListViews are also in the tree. Instead, use the tall-viewport pattern: set tester.view.physicalSize = const Size(800, 1200) and tester.view.devicePixelRatio = 1.0 at the top of the test (with addTearDown(tester.view.reset)). A tall viewport makes the submit button visible without any scrolling.
+
+## ExportOptions.plist signingStyle does not override archive phase — set CODE_SIGN_STYLE=Manual in project.pbxproj
+**Repo:** domiva-mobile
+**PR:** #35
+**Date:** 2026-05-28
+**What went wrong:** ios/ExportOptions.plist with signingStyle=manual was added to fix headless CI signing, but CODE_SIGN_STYLE=Automatic remained in project.pbxproj. ExportOptions.plist only controls xcodebuild -exportArchive (the export phase); the xcodebuild archive phase (which runs first inside flutter build ipa) still used Automatic signing, causing xcodebuild to contact Apple's provisioning portal and fail on runners with no Apple ID session.
+**Correct approach:** Set CODE_SIGN_STYLE=Manual in ALL Xcode build configurations (Runner Debug/Release/Profile and RunnerTests Debug/Release/Profile) in ios/Runner.xcodeproj/project.pbxproj. ExportOptions.plist handles the export phase; the project file must handle the archive phase. Without CODE_SIGN_STYLE=Manual in the project, the archive step silently falls back to Automatic signing regardless of ExportOptions.plist.
+
+## Android package rename requires directory migration that sandbox cannot delete
+**Repo:** domiva-mobile
+**PR:** #43
+**Date:** 2026-05-30
+**What went wrong:** When renaming applicationId/namespace in build.gradle, the Kotlin source directory (e.g. com/domiva/mobile_application/) must also be renamed to match. The fix agent sandbox blocks file deletion (rm, git rm), so the old directory cannot be removed programmatically. Creating only the new file leaves a stale placeholder and cleared old file in the tree.
+**Correct approach:** Coding agents should handle Android package renames atomically using git mv (moves the file and tracks it in git). If a fix agent must handle it: (1) create the new MainActivity.kt at the correct path with the new package declaration, (2) overwrite the old file with only a comment (no class, no package declaration) to avoid a duplicate-class compile error, (3) add a prominent note in the PR comment that the old directory needs manual cleanup: git rm -r android/app/src/main/kotlin/com/
