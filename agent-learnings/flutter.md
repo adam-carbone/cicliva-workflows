@@ -41,12 +41,12 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **What went wrong:** The release signingConfig set storeFile unconditionally, breaking `flutter run --release` locally because domiva-release.jks is never on developer machines (it is decoded from a CI secret at build time).
 **Correct approach:** Always guard the storeFile assignment with `if (keystoreFile.exists())` in signingConfigs.release, and select the signingConfig in the release buildType with a ternary: `file('domiva-release.jks').exists() ? signingConfigs.release : signingConfigs.debug`. This preserves local debug-signed release builds while CI still produces a properly signed AAB.
 
-## dorny/test-reporter v2+ renamed dart-test reporter to flutter-machine
+## dorny/test-reporter: dart-json is the correct reporter for flutter test --machine
 **Repo:** domiva-mobile
-**PR:** #13
-**Date:** 2026-05-17
-**What went wrong:** ci.yml used `reporter: dart-test` with dorny/test-reporter pinned to a v3.0.0 commit SHA. dart-test was the v1 reporter name; v2+ renamed it to flutter-machine. The action rejected the value at startup and the build step failed.
-**Correct approach:** Use `reporter: flutter-machine` for the output of `flutter test --machine`. If upgrading dorny/test-reporter across major versions, verify the reporter name is still valid — the mapping of Flutter output formats to reporter names can change between major versions.
+**PR:** #44
+**Date:** 2026-06-01
+**What went wrong:** The PR #13 fix agent changed `reporter: dart-test` to `reporter: flutter-machine`, believing v2+ renamed the reporter. But `flutter-machine` does not exist in any version of dorny/test-reporter — that fix introduced a new CI failure. The original learning was recorded as if `flutter-machine` were correct, which would cause any agent reading it to re-introduce the broken value.
+**Correct approach:** Use `reporter: dart-json` for the output of `flutter test --machine`. `flutter-machine` is not a valid reporter name in any version of dorny/test-reporter. The correct reporter for Flutter/Dart test machine output is `dart-json`.
 
 ## Use a tall test viewport when form fields fill or exceed 800x600
 **Repo:** domiva-mobile
