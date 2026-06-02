@@ -63,3 +63,10 @@ gh api repos/Domiva-Life/domiva-workflows/contents/agent-learnings/cross-repo.md
 **Date:** 2026-05-15
 **What went wrong:** ci.yml was changed to use `./gradlew build` instead of `gradle build`. gradle-wrapper.jar is excluded by the *.jar rule in .gitignore and is never present in CI. Without it, ./gradlew fails immediately with ClassNotFoundException: org.gradle.wrapper.GradleWrapperMain. The inline comment in ci.yml explicitly warns against using ./gradlew, but the command was changed anyway. This is the second revert of this exact bug (first was c70a540, reintroduced in 5e307bc).
 **Correct approach:** Always use `gradle build` (the system Gradle installed by gradle/actions/setup-gradle with gradle-version) in ci.yml. Never change this to `./gradlew build` — the wrapper JAR is gitignored. If you see `./gradlew` in ci.yml, treat it as a bug regardless of consistency arguments with other workflow files.
+
+## gh issue create --label fires issues:opened, not issues:labeled
+**Repo:** domiva-mobile
+**PR:** #48
+**Date:** 2026-06-02
+**What went wrong:** distribute-trigger.yml used `gh issue create --label <L>` to create the tracking issue. GitHub fires a single `issues:opened` event (with labels in the payload) — it does NOT fire separate `issues:labeled` events for labels included at creation time. Distribute workflows that listen for `types: [labeled]` were never triggered on first /distribute invocation; distributions silently did not happen.
+**Correct approach:** Create the issue without `--label` flags, capture the issue number from the URL, then add each label separately via `gh issue edit $ISSUE_NUMBER --add-label $L`. Each `gh issue edit --add-label` call hits the labels REST endpoint and reliably fires a distinct `issues:labeled` event per label. This applies to any workflow that dispatches work by adding labels to a newly created issue.
