@@ -405,6 +405,36 @@ jobs:
 
             This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}. After ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }} attempts, the agent stops and escalates to a human.
 
+      - name: Re-trigger PR Review if nothing was fixed
+        # Fires when Claude was skipped (should_skip=true) AND when CI is green with no
+        # blocking reviews — i.e. the fix agent determined there was nothing to do locally.
+        # Without this step, the re-review trigger only lives inside Claude's prompt (instruction 14).
+        # If Claude is skipped for any reason (cap reached, no issues found), instruction 14
+        # never runs and the PR is left stuck with CHANGES_REQUESTED and no forward progress.
+        # This step is the workflow-level safety net that closes the loop regardless of whether
+        # Claude ran. (Fixed: PR #XX, root-caused in domiva-mobile PR #63 incident.)
+        if: |
+          steps.ci_context.outputs.should_skip == 'true' ||
+          (steps.ci_context.outputs.should_skip != 'true' &&
+           fromJSON(steps.ci_context.outputs.result).blockingReviews == '[]' &&
+           fromJSON(steps.ci_context.outputs.result).ciFailures == '[]')
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          PR_NUMBER="${{ fromJSON(steps.ci_context.outputs.result).prNumber || inputs.pr_number }}"
+          REPO="${{ inputs.repo }}"
+          # Only re-trigger if CI is green and no CHANGES_REQUESTED remain
+          OPEN_BLOCKERS=$(gh api repos/$REPO/pulls/$PR_NUMBER/reviews \
+            --jq '[.[] | select(.state == "CHANGES_REQUESTED")] | length' 2>/dev/null || echo "0")
+          CI_STATE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup \
+            --jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length' 2>/dev/null || echo "0")
+          if [ "$OPEN_BLOCKERS" = "0" ] && [ "$CI_STATE" = "0" ]; then
+            echo "No blockers and CI green — triggering PR Review to close the loop."
+            gh workflow run "PR Review" --repo "$REPO" --field pr_number="$PR_NUMBER"
+          else
+            echo "Blockers ($OPEN_BLOCKERS) or CI failures ($CI_STATE) still present — skipping re-trigger."
+          fi
+
 
 
 
