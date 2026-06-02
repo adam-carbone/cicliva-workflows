@@ -76,19 +76,12 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **What went wrong:** distribute-android.yml was missing a step to create .env/dev.json before the build. The file is declared as a Flutter asset in pubspec.yaml but the .env/ directory is gitignored. ci.yml had the workaround but the distribution workflow did not, meaning flutter build appbundle --release would fail with a missing asset error on every push to main.
 **Correct approach:** Any workflow that runs a Flutter build (flutter build, flutter test, etc.) must create all gitignored asset files before running flutter pub get. Check pubspec.yaml assets: for gitignored paths and add a creation step to every workflow that builds. For production builds, use a secret (e.g. RELEASE_ENV_CONFIG) with a fallback to production-appropriate defaults (USE_MOCK: false).
 
-## xcrun altool removed in Xcode 16 — pin distribute workflow to macos-14
+## iOS distribution: use Fastlane on macos-15, not xcrun altool on macos-14
 **Repo:** domiva-mobile
-**PR:** #35
-**Date:** 2026-05-27
-**What went wrong:** distribute-ios.yml used runs-on: macos-latest and invoked xcrun altool --upload-app. An inline comment incorrectly claimed altool was only deprecated for --notarize-app and that iOS uploads remained supported. In fact, Apple removed altool entirely in Xcode 16. macos-latest now maps to macOS 15 / Xcode 16, so the upload step fails with "command not found".
-**Correct approach:** Pin the iOS distribution job to runs-on: macos-14 (Xcode 15) where altool still exists. Add a comment explaining the pin and documenting the migration path to Fastlane upload_to_testflight. Do NOT write comments claiming partial deprecation without verifying the exact scope of removal. See docs/adr/002-ios-distribution-altool-xcode16.md.
-
-## xcrun altool removed in Xcode 16 — pin distribute-ios to macos-14
-**Repo:** domiva-mobile
-**PR:** #35
-**Date:** 2026-05-27
-**What went wrong:** distribute-ios.yml used `runs-on: macos-latest` (now macOS 15 / Xcode 16) and included an incorrect inline comment claiming altool was only deprecated for `--notarize-app`. In reality, Apple removed altool entirely in Xcode 16 -- all subcommands including `--upload-app` for iOS IPA uploads are gone.
-**Correct approach:** Pin iOS distribution workflows that use `xcrun altool --upload-app` to `runs-on: macos-14` (Xcode 15) where altool is still present. Add a comment explaining the pin and the migration path (Fastlane `upload_to_testflight`) for when macos-14 runners are retired. Never write comments claiming altool deprecation is scoped only to notarization -- the entire tool was removed in Xcode 16.
+**PR:** #66
+**Date:** 2026-06-02
+**What went wrong:** Earlier learnings (PR #35) instructed agents to pin the iOS distribution workflow to `runs-on: macos-14` because `xcrun altool` was removed in Xcode 16. Those entries also implied altool was the correct upload tool as long as macos-14 was pinned. Both are now wrong: macos-14 runners will eventually be retired, and altool is a dead end.
+**Correct approach:** Use `runs-on: macos-15` (Xcode 16+) and Fastlane `upload_to_testflight` for iOS IPA uploads. `xcrun altool` was removed entirely in Xcode 16 — do NOT write any workflow that calls it. The Fastlane lane reads the App Store Connect API key from a JSON file written before the upload step. See PR #66 for the canonical workflow. Do NOT reintroduce `runs-on: macos-14` or `xcrun altool` — the previous learnings recommending them are superseded by this entry.
 
 ## find.byType(ListView) matches hidden parent-route ListViews in GoRouter tests
 **Repo:** domiva-mobile
@@ -118,3 +111,10 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-06-02
 **What went wrong:** The upload step wrote the .p8 key to $RUNNER_TEMP/authkey.p8 and passed --apiKeyPath to xcrun altool. altool silently ignores --apiKeyPath entirely; it resolves the API key by name (AuthKey_{KEY_ID}.p8) from a hardcoded set of directories only: ~/private_keys, ~/.private_keys, ~/.appstoreconnect/private_keys, or ./private_keys. Writing to any other path causes a "Failed to load AuthKey file" authentication error.
 **Correct approach:** Write the .p8 to ~/.appstoreconnect/private_keys/AuthKey_{APPLE_API_KEY_ID}.p8 (create the directory with mkdir -p first). Do NOT pass --apiKeyPath -- it has no effect and will silently fail if the file is not also in one of the hardcoded locations.
+
+## Multiline secrets must be escaped with jq when written to JSON files
+**Repo:** domiva-mobile
+**PR:** #66
+**Date:** 2026-06-02
+**What went wrong:** The "Write App Store Connect API key" step wrote the APPLE_API_KEY secret (a raw .p8 PEM file) directly into a JSON heredoc via `"key": "$APPLE_API_KEY"`. Raw .p8 files contain literal newline characters; embedding them inside a JSON string value violates RFC 8259 §7. Fastlane calls JSON.parse on this file and raises JSON::ParserError on every run.
+**Correct approach:** Use `jq -Rs` to construct the JSON — `-R` reads raw text (not JSON), `-s` slurps all lines into one string with newlines escaped as `\n`. Example: `printf '%s' "$APPLE_API_KEY" | jq -Rs --arg kid "$APPLE_API_KEY_ID" --arg iid "$APPLE_API_ISSUER_ID" '{key_id: $kid, issuer_id: $iid, key: ., in_house: false}' > "$API_KEY_PATH"`. Never interpolate a multiline secret directly into a JSON string — always route it through jq.
