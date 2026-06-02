@@ -45,14 +45,14 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Repo:** domiva-mobile
 **PR:** #44
 **Date:** 2026-06-01
-**What went wrong:** The PR #13 fix agent changed `reporter: dart-test` to `reporter: flutter-machine`, believing v2+ renamed the reporter. But `flutter-machine` does not exist in any version of dorny/test-reporter — that fix introduced a new CI failure. The original learning was recorded as if `flutter-machine` were correct, which would cause any agent reading it to re-introduce the broken value.
+**What went wrong:** The PR #13 fix agent changed `reporter: dart-test` to `reporter: flutter-machine`, believing v2+ renamed the reporter. But `flutter-machine` does not exist in any version of dorny/test-reporter -- that fix introduced a new CI failure. The original learning was recorded as if `flutter-machine` were correct, which would cause any agent reading it to re-introduce the broken value.
 **Correct approach:** Use `reporter: dart-json` for the output of `flutter test --machine`. `flutter-machine` is not a valid reporter name in any version of dorny/test-reporter. The correct reporter for Flutter/Dart test machine output is `dart-json`.
 
 ## Use a tall test viewport when form fields fill or exceed 800x600
 **Repo:** domiva-mobile
 **PR:** #13
 **Date:** 2026-05-17
-**What went wrong:** A widget test used ensureVisible(find.text('Save changes')) to scroll a submit button into view inside a deep form. ListView builds children lazily — the button was not in the render tree until it scrolled into the viewport, so ensureVisible threw "No element". Replacing with scrollUntilVisible also failed because TextFormField(maxLines: 3) creates an internal Scrollable inside EditableText, making find.byType(Scrollable) ambiguous ("Too many elements").
+**What went wrong:** A widget test used ensureVisible(find.text('Save changes')) to scroll a submit button into view inside a deep form. ListView builds children lazily -- the button was not in the render tree until it scrolled into the viewport, so ensureVisible threw "No element". Replacing with scrollUntilVisible also failed because TextFormField(maxLines: 3) creates an internal Scrollable inside EditableText, making find.byType(Scrollable) ambiguous ("Too many elements").
 **Correct approach:** When a form with 5+ fields plus NavigationBar (80dp) and AppBar (56dp) must all fit in a 600dp viewport, set `tester.view.physicalSize = const Size(800, 1200)` and `tester.view.devicePixelRatio = 1.0` at the top of the test, with `addTearDown(tester.view.reset)`. This ensures all form items are in the render tree with no scrolling needed. Note: any TextFormField with maxLines > 1 always creates a second internal Scrollable even with empty text.
 
 ## Placeholder navigation tests must be replaced when routes are wired
@@ -66,8 +66,8 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Repo:** domiva-mobile
 **PR:** #13
 **Date:** 2026-05-17
-**What went wrong:** _loadContact() silently left the edit form blank when getByUuid returned null (missing contact) or threw a database exception. The catch block was misleadingly commented "Contact not found" even though getSingleOrNull() never throws for missing rows — it only fires for real DB failures.
-**Correct approach:** (1) When getByUuid returns null, show a snackbar (e.g. "Contact not found") and call context.pop() — never leave the user on a blank edit form with no explanation. (2) In the catch block, show the error message (e.g. "Failed to load contact: $e") rather than swallowing it silently. Match the pattern used in _save(). (3) Add regression tests for both paths: FakeContactRepository with no matching UUID (null return), and with throwOnGetByUuid: true (DB error). When asserting snackbar text that also appears in a sibling screen body, use find.descendant(of: find.byType(SnackBar), matching: find.text(...)) to avoid ambiguity.
+**What went wrong:** _loadContact() silently left the edit form blank when getByUuid returned null (missing contact) or threw a database exception. The catch block was misleadingly commented "Contact not found" even though getSingleOrNull() never throws for missing rows -- it only fires for real DB failures.
+**Correct approach:** (1) When getByUuid returns null, show a snackbar (e.g. "Contact not found") and call context.pop() -- never leave the user on a blank edit form with no explanation. (2) In the catch block, show the error message (e.g. "Failed to load contact: $e") rather than swallowing it silently. Match the pattern used in _save(). (3) Add regression tests for both paths: FakeContactRepository with no matching UUID (null return), and with throwOnGetByUuid: true (DB error). When asserting snackbar text that also appears in a sibling screen body, use find.descendant(of: find.byType(SnackBar), matching: find.text(...)) to avoid ambiguity.
 
 ## Gitignored Flutter assets must be created in every build workflow
 **Repo:** domiva-mobile
@@ -87,8 +87,8 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Repo:** domiva-mobile
 **PR:** #35
 **Date:** 2026-05-27
-**What went wrong:** distribute-ios.yml used `runs-on: macos-latest` (now macOS 15 / Xcode 16) and included an incorrect inline comment claiming altool was only deprecated for `--notarize-app`. In reality, Apple removed altool entirely in Xcode 16 — all subcommands including `--upload-app` for iOS IPA uploads are gone.
-**Correct approach:** Pin iOS distribution workflows that use `xcrun altool --upload-app` to `runs-on: macos-14` (Xcode 15) where altool is still present. Add a comment explaining the pin and the migration path (Fastlane `upload_to_testflight`) for when macos-14 runners are retired. Never write comments claiming altool deprecation is scoped only to notarization — the entire tool was removed in Xcode 16.
+**What went wrong:** distribute-ios.yml used `runs-on: macos-latest` (now macOS 15 / Xcode 16) and included an incorrect inline comment claiming altool was only deprecated for `--notarize-app`. In reality, Apple removed altool entirely in Xcode 16 -- all subcommands including `--upload-app` for iOS IPA uploads are gone.
+**Correct approach:** Pin iOS distribution workflows that use `xcrun altool --upload-app` to `runs-on: macos-14` (Xcode 15) where altool is still present. Add a comment explaining the pin and the migration path (Fastlane `upload_to_testflight`) for when macos-14 runners are retired. Never write comments claiming altool deprecation is scoped only to notarization -- the entire tool was removed in Xcode 16.
 
 ## find.byType(ListView) matches hidden parent-route ListViews in GoRouter tests
 **Repo:** domiva-mobile
@@ -103,7 +103,7 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-28
 **What went wrong:** ios/ExportOptions.plist with signingStyle=manual was added to fix headless CI signing, but CODE_SIGN_STYLE=Automatic remained in project.pbxproj. ExportOptions.plist only controls xcodebuild -exportArchive (the export phase); the xcodebuild archive phase (which runs first inside flutter build ipa) still used Automatic signing, causing xcodebuild to contact Apple's provisioning portal and fail on runners with no Apple ID session.
 **Correct approach:** Set CODE_SIGN_STYLE=Manual on the Runner **Release** and **Profile** build configurations only in ios/Runner.xcodeproj/project.pbxproj. Also set `"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution"` on those same two configs so the archive phase selects the distribution cert (not the development cert) when only an iPhone Distribution certificate is installed in CI.
-**Do NOT set Manual on the Debug config.** Debug uses Automatic signing for local development — `flutter run` on physical devices relies on Xcode managing the development profile automatically. Setting Manual on Debug without a PROVISIONING_PROFILE_SPECIFIER breaks local device builds. The distribute workflow only runs `--release`, so Debug signing is irrelevant to CI distribution.
+**Do NOT set Manual on the Debug config.** Debug uses Automatic signing for local development -- `flutter run` on physical devices relies on Xcode managing the development profile automatically. Setting Manual on Debug without a PROVISIONING_PROFILE_SPECIFIER breaks local device builds. The distribute workflow only runs `--release`, so Debug signing is irrelevant to CI distribution.
 
 ## Android package rename requires directory migration that sandbox cannot delete
 **Repo:** domiva-mobile
@@ -111,3 +111,10 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-30
 **What went wrong:** When renaming applicationId/namespace in build.gradle, the Kotlin source directory (e.g. com/domiva/mobile_application/) must also be renamed to match. The fix agent sandbox blocks file deletion (rm, git rm), so the old directory cannot be removed programmatically. Creating only the new file leaves a stale placeholder and cleared old file in the tree.
 **Correct approach:** Coding agents should handle Android package renames atomically using git mv (moves the file and tracks it in git). If a fix agent must handle it: (1) create the new MainActivity.kt at the correct path with the new package declaration, (2) overwrite the old file with only a comment (no class, no package declaration) to avoid a duplicate-class compile error, (3) add a prominent note in the PR comment that the old directory needs manual cleanup: git rm -r android/app/src/main/kotlin/com/
+
+## xcrun altool ignores --apiKeyPath — key must be in a hardcoded directory
+**Repo:** domiva-mobile
+**PR:** #63
+**Date:** 2026-06-02
+**What went wrong:** The upload step wrote the .p8 key to $RUNNER_TEMP/authkey.p8 and passed --apiKeyPath to xcrun altool. altool silently ignores --apiKeyPath entirely; it resolves the API key by name (AuthKey_{KEY_ID}.p8) from a hardcoded set of directories only: ~/private_keys, ~/.private_keys, ~/.appstoreconnect/private_keys, or ./private_keys. Writing to any other path causes a "Failed to load AuthKey file" authentication error.
+**Correct approach:** Write the .p8 to ~/.appstoreconnect/private_keys/AuthKey_{APPLE_API_KEY_ID}.p8 (create the directory with mkdir -p first). Do NOT pass --apiKeyPath -- it has no effect and will silently fail if the file is not also in one of the hardcoded locations.
