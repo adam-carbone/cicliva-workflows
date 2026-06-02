@@ -76,19 +76,13 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **What went wrong:** distribute-android.yml was missing a step to create .env/dev.json before the build. The file is declared as a Flutter asset in pubspec.yaml but the .env/ directory is gitignored. ci.yml had the workaround but the distribution workflow did not, meaning flutter build appbundle --release would fail with a missing asset error on every push to main.
 **Correct approach:** Any workflow that runs a Flutter build (flutter build, flutter test, etc.) must create all gitignored asset files before running flutter pub get. Check pubspec.yaml assets: for gitignored paths and add a creation step to every workflow that builds. For production builds, use a secret (e.g. RELEASE_ENV_CONFIG) with a fallback to production-appropriate defaults (USE_MOCK: false).
 
-## xcrun altool removed in Xcode 16 — pin distribute workflow to macos-14
+## Use Fastlane upload_to_testflight for iOS distribution — do not use xcrun altool
 **Repo:** domiva-mobile
-**PR:** #35
-**Date:** 2026-05-27
-**What went wrong:** distribute-ios.yml used runs-on: macos-latest and invoked xcrun altool --upload-app. An inline comment incorrectly claimed altool was only deprecated for --notarize-app and that iOS uploads remained supported. In fact, Apple removed altool entirely in Xcode 16. macos-latest now maps to macOS 15 / Xcode 16, so the upload step fails with "command not found".
-**Correct approach:** Pin the iOS distribution job to runs-on: macos-14 (Xcode 15) where altool still exists. Add a comment explaining the pin and documenting the migration path to Fastlane upload_to_testflight. Do NOT write comments claiming partial deprecation without verifying the exact scope of removal. See docs/adr/002-ios-distribution-altool-xcode16.md.
+**PR:** #66
+**Date:** 2026-06-02
+**What went wrong:** xcrun altool was used for TestFlight uploads and the workflow was pinned to macos-14 (Xcode 15) to keep altool available. Apple then mandated the iOS 26 SDK for all new submissions, which requires Xcode 26 (macos-15+). This created an irreconcilable conflict: altool requires Xcode 15, the iOS 26 SDK requires Xcode 16+. The root mistake was choosing altool at all — Fastlane upload_to_testflight was the correct modern choice from the start.
+**Correct approach:** Use Fastlane upload_to_testflight for all TestFlight uploads. Run on macos-15 or macos-latest. Pass credentials via an ASC API key JSON file (key_id, issuer_id, key fields). Do NOT use xcrun altool in any form — it is gone in Xcode 16+ and Apple actively requires newer SDKs that are only available on Xcode 16+. Do NOT pin to macos-14 to preserve altool access.
 
-## xcrun altool removed in Xcode 16 — pin distribute-ios to macos-14
-**Repo:** domiva-mobile
-**PR:** #35
-**Date:** 2026-05-27
-**What went wrong:** distribute-ios.yml used `runs-on: macos-latest` (now macOS 15 / Xcode 16) and included an incorrect inline comment claiming altool was only deprecated for `--notarize-app`. In reality, Apple removed altool entirely in Xcode 16 — all subcommands including `--upload-app` for iOS IPA uploads are gone.
-**Correct approach:** Pin iOS distribution workflows that use `xcrun altool --upload-app` to `runs-on: macos-14` (Xcode 15) where altool is still present. Add a comment explaining the pin and the migration path (Fastlane `upload_to_testflight`) for when macos-14 runners are retired. Never write comments claiming altool deprecation is scoped only to notarization — the entire tool was removed in Xcode 16.
 
 ## find.byType(ListView) matches hidden parent-route ListViews in GoRouter tests
 **Repo:** domiva-mobile
