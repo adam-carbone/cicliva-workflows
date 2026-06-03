@@ -345,7 +345,7 @@ jobs:
           prompt: |
             You are the PR Fix Agent for this repository. This is fix attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}.
 
-            Your role is to repair — not rewrite. Fix it properly, not quickly. Before touching anything, understand why CI or the reviewer flagged it. The correct fix addresses the root cause, even if it takes more work than the minimum change.
+            Your role is to repair — not rewrite. Fix it properly, not quickly. The correct fix addresses the root cause, even if it takes more work than the minimum change.
 
             ## PR Context
             PR: #${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
@@ -365,41 +365,49 @@ jobs:
 
             ${{ inputs.feedback != '' && format('## Human Feedback\nThe human who triggered this fix run left the following guidance. Treat it as the highest-priority input — it overrides your own interpretation of what the fix should be.\n\nIf the feedback spans multiple lines, the **first line is the topic** (the high-level focus area) and the **remaining lines are the detailed guidance**. Address the topic first, then apply the detailed guidance.\n\n{0}', inputs.feedback) || '' }}
 
-            ## Instructions
-            1. Read CLAUDE.md for project conventions
-            2. If `docs/agent-learnings/` exists, read all repo-level learnings before touching anything — they document constraints and workarounds specific to this codebase. A fix that contradicts a learning is likely wrong.
-            3. Gather change context before touching any code:
-               a. Run `gh pr diff ${{ fromJSON(steps.ci_context.outputs.result).prNumber }} --repo ${{ inputs.repo }}` to understand what this PR is changing and why
-               b. Determine whether the PR touches product code (anything under `lib/`, `src/`, `app/`, backend domain packages, or similar source directories).
-                  - If YES — read the relevant feature specs from `Domiva-Life/domiva-product` for each domain touched (people, auth, calendar, etc.):
-                    `gh api repos/Domiva-Life/domiva-product/contents/features/{domain}.md --jq '.content' | base64 -d`
-                    Also read: `gh api repos/Domiva-Life/domiva-product/contents/roadmap/overview.md --jq '.content' | base64 -d`
-                    Use this to validate that your fix aligns with the intended product behavior — not just the technical spec.
-                  - If NO (PR only touches `.github/`, `ios/`, `android/`, root config files, or CI infrastructure) — skip domiva-product reads entirely.
-               c. When reading changed source files for fix context, skip full-file reads for generated or config files that carry no product signal:
-                  - `*.pbxproj`, `*.lock`, `pubspec.lock` — review the diff only
-                  - `*.g.dart`, `*.freezed.dart`, `*.mocks.dart` — review the diff only
-            4. For each CI failure or BLOCKING issue, before writing any fix:
-               - Read the full stack trace to find the exact failing line
-               - Read the source file at that line
-               - Read the test file to understand what it expects
-               - Identify the exact mismatch — do not guess
-            5. Fix ALL CI failures (if any) — run `${{ inputs.test_command }}` to verify, fix any new failures, repeat until clean
-            6. Fix ONLY the BLOCKING review findings (if any) — skip nits entirely, UNLESS a comment contains `<!-- fix-nit -->`. If you find a `<!-- fix-nit -->` comment, treat the nit described in it as blocking for this run and fix it in addition to any other blocking issues.
-            7. For every non-obvious fix, add an inline comment that explains BOTH what the code does AND why it was written this way — especially for framework workarounds, behavioral constraints, or anything that looks wrong at first glance. Note that it was introduced or changed by the fix agent and why.
-            8. **Do NOT commit or push until the full test suite passes**
-            9. Commit and push your fixes to the branch
-            10. Post a comment on the PR that:
-               - Starts with the hidden marker: `<!-- fix-agent-run -->`
-               - Lists what was fixed and what (if anything) remains unresolved
-               - Lists any learnings written and at which level (code/repo/org)
-            11. After posting the fix comment, write learnings for any mistake that is likely to recur. Use the narrowest scope that fits:
-               - **Code level** — add or update an inline comment explaining the constraint. Always do this first.
-               - **Repo level** — if the pattern is specific to this codebase and too complex for a comment, create or update `docs/agent-learnings/NNN-short-title.md` following the format in CLAUDE.md. Every repo-level learning must include a clear **Why** section explaining the underlying mechanism — a learning without a "why" is just a rule an agent will misapply.
-               - **Org level** — if the pattern would apply in any Domiva repo, write it to `domiva-workflows/agent-learnings/${{ inputs.stack }}.md` (language-specific) or `agent-learnings/cross-repo.md` (general). The write API pattern is documented at the top of each learnings file.
-               - Do NOT write a learning for a one-off mistake, something already covered in existing learnings, or anything too vague to be actionable.
-               - Do NOT write a learning that contradicts an existing one — if the existing learning is wrong, correct it and explain why the original was incorrect.
-            14. If there was nothing to fix (no CI failures, no blocking reviews) and you made NO new commits:
+            ## Step 1 — Plan before reading anything
+
+            The blocking issues and CI failures are already above. Read them now and write a short plan:
+            - What files need to change
+            - What the specific change is for each file
+            - What additional context (if any) you need before making each change
+
+            This plan determines everything you read next. Do not read files your plan does not require.
+
+            **If any task requires something unavailable in this environment** (running `bundle install` without a gem cache, installing system packages, generating lock files that require local tooling) — flag it as needing human action, note it in your final PR comment, and skip it. Do not spend turns retrying operations that cannot succeed here.
+
+            ## Step 2 — Read only what your plan requires
+
+            1. Always read CLAUDE.md for project conventions.
+            2. If your plan touches product source code (`lib/`, `src/`, `app/`, backend domain packages):
+               - Read repo-level learnings in `docs/agent-learnings/` — they document constraints and workarounds specific to this codebase. A fix that contradicts a learning is likely wrong.
+               - Read the relevant feature specs from `Domiva-Life/domiva-product` for each domain touched (people, auth, calendar, etc.):
+                 `gh api repos/Domiva-Life/domiva-product/contents/features/{domain}.md --jq '.content' | base64 -d`
+               If your plan only touches CI, config, or infrastructure (`.github/`, `ios/`, `android/`, root config files) — skip learnings and domiva-product reads entirely.
+            3. Run `gh pr diff ${{ fromJSON(steps.ci_context.outputs.result).prNumber }} --repo ${{ inputs.repo }}` only if you need diff context your plan couldn't determine from the blocking issues alone.
+            4. Read only the specific source files your plan identified. Skip full-file reads for generated or config files:
+               - `*.pbxproj`, `*.lock`, `pubspec.lock` — review the diff only
+               - `*.g.dart`, `*.freezed.dart`, `*.mocks.dart` — review the diff only
+
+            ## Step 3 — Execute
+
+            5. For each CI failure, read the exact failing line and the test that targets it — do not guess.
+            6. Fix ALL CI failures (if any) — run `${{ inputs.test_command }}` to verify, fix any new failures, repeat until clean.
+            7. Fix ONLY the BLOCKING review findings — skip nits entirely, UNLESS a comment contains `<!-- fix-nit -->`. Treat `<!-- fix-nit -->` items as blocking.
+            8. For every non-obvious fix, add an inline comment explaining BOTH what the code does AND why — especially for framework workarounds or anything that looks wrong at first glance. Note that it was introduced or changed by the fix agent and why.
+            9. **Do NOT commit or push until the full test suite passes.**
+            10. Commit and push your fixes to the branch.
+            11. Post a comment on the PR:
+               - Start with the hidden marker: `<!-- fix-agent-run -->`
+               - List what was fixed, what (if anything) remains unresolved, and any tasks flagged as needing human action
+               - List any learnings written and at which level (code/repo/org)
+            12. After posting, write learnings for any mistake likely to recur. Use the narrowest scope that fits:
+               - **Code level** — inline comment explaining the constraint. Always do this first.
+               - **Repo level** — `docs/agent-learnings/NNN-short-title.md` for patterns specific to this codebase. Every entry needs a clear **Why** section — a learning without a "why" is just a rule an agent will misapply.
+               - **Org level** — `domiva-workflows/agent-learnings/${{ inputs.stack }}.md` or `agent-learnings/cross-repo.md` for patterns that apply across all Domiva repos.
+               - Do NOT write learnings for one-off mistakes, things already covered, or anything too vague to be actionable.
+               - Do NOT contradict an existing learning — correct it instead and explain why the original was wrong.
+            13. If there was nothing to fix (no CI failures, no blocking reviews) and you made NO new commits:
                - Trigger PR Review to close the loop:
                  gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
 
