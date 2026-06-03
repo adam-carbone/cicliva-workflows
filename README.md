@@ -185,9 +185,40 @@ Guidance body only (no inline text) — all lines treated as guidance.
 
 ## Adding to a New Repo
 
-1. Create `.github/workflows/ci.yml` — your build and test CI (job must be named `build`, workflow named `Build + Test`)
+Run the install script from the root of your repo:
 
-2. Create `.github/workflows/claude.yml` — the coding agent:
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh)
+```
+
+The script will:
+1. Detect your stack (Flutter, Java, React Native) or prompt you to select one
+2. Copy the correct workflow files into `.github/workflows/`
+3. Prompt for required secrets and configure them via `gh secret set`
+
+After install, verify everything is in place:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh) doctor
+```
+
+To check and interactively fix any drift later:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh) doctor --cure
+```
+
+The one file you still need to create manually is `.github/workflows/ci.yml` — your repo-specific build and test CI. The job must be named `build` and the workflow named `Build + Test` for the agent pipeline to wire up correctly.
+
+---
+
+## Manual Workflow Reference
+
+The install script handles everything below automatically. This section is reference documentation for what gets installed.
+
+### `.github/workflows/ci.yml` — Build and Test CI
+
+### `.github/workflows/claude.yml` — Coding Agent
 
 ```yaml
 name: Claude Coding Agent
@@ -257,7 +288,7 @@ jobs:
           claude_args: --max-turns 50 --allowedTools "Bash(gh pr create:*),Bash(gh pr view:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git rm:*),Edit,MultiEdit,Write,Read,Glob,Grep,LS"
 ```
 
-3. Create `.github/workflows/pr-review.yml`:
+### `.github/workflows/pr-review.yml` — PR Review
 
 ```yaml
 name: PR Review
@@ -288,7 +319,7 @@ jobs:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-4. Create `.github/workflows/ci-auto-fix.yml` (Java example):
+### `.github/workflows/ci-auto-fix.yml` — PR Fix Agent (Java example)
 
 ```yaml
 name: PR Fix Agent
@@ -338,7 +369,7 @@ jobs:
 
 For Flutter: `stack: flutter`, `build_command: flutter pub get && dart run build_runner build --delete-conflicting-outputs`, `test_command: flutter test`.
 
-5. Create `.github/workflows/issue-chain.yml`:
+### `.github/workflows/issue-chain.yml` — Issue Orchestrator
 
 ```yaml
 name: Issue Orchestrator
