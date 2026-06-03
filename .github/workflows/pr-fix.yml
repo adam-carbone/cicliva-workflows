@@ -321,7 +321,14 @@ jobs:
             };
 
       - name: Dismiss approved reviews before agent runs
-        if: steps.ci_context.outputs.should_skip != 'true'
+        # Only dismiss APPROVED reviews when there is actually something to fix.
+        # If there are no blockers and no CI failures, the fix agent will make no commits —
+        # dismissing the APPROVED review at that point creates a loop: no fixes → re-trigger
+        # PR Review → APPROVED again → dismiss → re-trigger PR Review → repeat.
+        if: |
+          steps.ci_context.outputs.should_skip != 'true' &&
+          (fromJSON(steps.ci_context.outputs.result).blockingReviews != '[]' ||
+           fromJSON(steps.ci_context.outputs.result).ciFailures != '[]')
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
@@ -437,11 +444,15 @@ jobs:
             --jq '[.[] | select(.state == "CHANGES_REQUESTED")] | length' 2>/dev/null || echo "0")
           CI_STATE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup \
             --jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length' 2>/dev/null || echo "0")
-          if [ "$OPEN_BLOCKERS" = "0" ] && [ "$CI_STATE" = "0" ]; then
-            echo "No blockers and CI green — triggering PR Review to close the loop."
+          # Also check for an existing APPROVED review — if the PR is already approved and
+          # CI is green, re-triggering PR Review creates a dismiss→approve→dismiss loop.
+          APPROVED=$(gh api repos/$REPO/pulls/$PR_NUMBER/reviews \
+            --jq '[.[] | select(.state == "APPROVED")] | length' 2>/dev/null || echo "0")
+          if [ "$OPEN_BLOCKERS" = "0" ] && [ "$CI_STATE" = "0" ] && [ "$APPROVED" = "0" ]; then
+            echo "No blockers, CI green, no existing approval — triggering PR Review to close the loop."
             gh workflow run "PR Review" --repo "$REPO" --field pr_number="$PR_NUMBER"
           else
-            echo "Blockers ($OPEN_BLOCKERS) or CI failures ($CI_STATE) still present — skipping re-trigger."
+            echo "Skipping re-trigger: blockers=$OPEN_BLOCKERS, CI failures=$CI_STATE, approved=$APPROVED"
           fi
 
 
