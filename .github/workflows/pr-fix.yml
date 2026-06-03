@@ -234,7 +234,11 @@ jobs:
                   owner, repo, ref: headBranch
                 });
                 const pusher = headCommit.data.author?.login ?? '';
-                isHumanPush = pusher !== 'github-actions[bot]';
+                // Any login ending in [bot] is an automated pusher — includes both
+                // github-actions[bot] (default token) and domiva-life-agent[bot] (app token).
+                // Checking only github-actions[bot] caused the cap to auto-extend on every
+                // agent-pushed commit because domiva-life-agent[bot] != github-actions[bot].
+                isHumanPush = !pusher.endsWith('[bot]');
               }
 
               if (isHumanPush) {
