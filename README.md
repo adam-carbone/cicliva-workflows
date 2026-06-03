@@ -202,11 +202,15 @@ After install, verify everything is in place:
 bash <(curl -fsSL https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh) doctor
 ```
 
-To check and interactively fix any drift later:
+`doctor` checks that all required workflow files exist, that each file matches the expected structure (correct triggers, jobs, and references), and that all required secrets are configured. Run it any time you suspect drift — after a manual edit, a merge, or when something in the pipeline stops behaving as expected.
+
+To interactively fix any issues doctor finds:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh) doctor --cure
 ```
+
+`doctor --cure` walks through each failing check, shows you the diff, and prompts before applying each fix.
 
 The one file you still need to create manually is `.github/workflows/ci.yml` — your repo-specific build and test CI. The job must be named `build` and the workflow named `Build + Test` for the agent pipeline to wire up correctly.
 
