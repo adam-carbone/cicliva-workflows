@@ -1,0 +1,100 @@
+# NOTE: This workflow name is referenced by ci-auto-fix.yml — do not rename without updating that file
+name: PR Review
+
+on:
+  # workflow_run intentionally disabled — fires but skips in practice; direct workflow_dispatch
+  # from ci.yml is what actually triggers PR Review. See domiva-agent-lab#5 to revisit.
+  # workflow_run:
+  #   workflows: ["Build + Test"]
+  #   types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+  issue_comment:
+    types: [created]
+
+jobs:
+  resolve:
+    if: |
+      # (workflow_run disabled — see domiva-agent-lab#5)
+      # (
+      #   github.event_name == 'workflow_run' &&
+      #   github.event.workflow_run.conclusion == 'success' &&
+      #   github.event.workflow_run.head_branch != 'main'
+      # ) ||
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        github.event.issue.state == 'open' &&
+        startsWith(github.event.comment.body, '/re-review') &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+        github.event.comment.user.type != 'Bot'
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    outputs:
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+    steps:
+      - name: Acknowledge /re-review
+        if: github.event_name == 'issue_comment'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions \
+            --method POST --field content='+1' 2>/dev/null || true
+          gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/labels/ready%20to%20merge \
+            --method DELETE 2>/dev/null || true
+
+      - name: Resolve PR number
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "pr_number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "issue_comment" ]; then
+            echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          # workflow_run disabled — see domiva-agent-lab#5
+          # else
+          #   BRANCH="${{ github.event.workflow_run.head_branch }}"
+          #   PR_NUMBER=$(gh pr list --repo ${{ github.repository }} --head "$BRANCH" --json number --jq '.[0].number // empty')
+          #   if [ -z "$PR_NUMBER" ]; then
+          #     echo "No open PR for branch $BRANCH — skipping review."
+          #     exit 0
+          #   fi
+          #   echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          fi
+
+  review:
+    needs: resolve
+    if: needs.resolve.outputs.pr_number != ''
+    uses: Domiva-Life/domiva-workflows/.github/workflows/pr-review.yml@main
+    with:
+      pr_number: ${{ needs.resolve.outputs.pr_number }}
+      repo: ${{ github.repository }}
+      stack: {{STACK}}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      domiva_reviewer_app_id: ${{ secrets.DOMIVA_REVIEWER_APP_ID }}
+      domiva_reviewer_private_key: ${{ secrets.DOMIVA_REVIEWER_PRIVATE_KEY }}
+
+  dispatch-fix:
+    needs: [resolve, review]
+    if: failure() && needs.resolve.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Fix Agent
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run "PR Fix Agent" \
+            --repo ${{ github.repository }} \
+            --field pr_number=${{ needs.resolve.outputs.pr_number }} \
+            --field head_branch=$(gh pr view ${{ needs.resolve.outputs.pr_number }} --repo ${{ github.repository }} --json headRefName --jq '.headRefName') \
+            --field triggered_by="PR Review"

@@ -1,0 +1,48 @@
+name: Sync Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/agent-workflows.sh'
+      - 'scripts/templates/**'
+  workflow_dispatch:
+
+jobs:
+  doctor:
+    name: doctor / ${{ matrix.repo }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        repo: [domiva-cloud, domiva-mobile, domiva-agent-lab]
+      fail-fast: false  # check all repos even if one fails
+    steps:
+      - name: Checkout domiva-workflows (for script + templates)
+        uses: actions/checkout@v4
+        with:
+          path: domiva-workflows
+
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.DOMIVA_AGENT_APP_ID }}
+          private-key: ${{ secrets.DOMIVA_AGENT_PRIVATE_KEY }}
+          owner: Domiva-Life
+          repositories: ${{ matrix.repo }}
+
+      - name: Checkout ${{ matrix.repo }}
+        uses: actions/checkout@v4
+        with:
+          repository: Domiva-Life/${{ matrix.repo }}
+          token: ${{ steps.app-token.outputs.token }}
+          path: target-repo
+
+      - name: Run doctor
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          cd target-repo
+          ../domiva-workflows/scripts/agent-workflows.sh doctor \
+            --repo Domiva-Life/${{ matrix.repo }} \
+            --skip-secrets

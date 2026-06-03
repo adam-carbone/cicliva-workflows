@@ -1,0 +1,91 @@
+name: PR Fix Agent
+
+on:
+  # workflow_run intentionally disabled — fires but skips in practice; direct workflow_dispatch
+  # from ci.yml (build failure) and review.yml dispatch-fix (review failure) are what actually
+  # trigger the Fix Agent. See domiva-agent-lab#5 to revisit.
+  # workflow_run:
+  #   workflows: ["Build + Test", "PR Review"]
+  #   types: [completed]
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to fix'
+        required: true
+      head_branch:
+        description: 'PR head branch'
+        required: true
+      triggered_by:
+        description: 'What triggered this fix (e.g. Build + Test)'
+        required: true
+        default: 'Build + Test'
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+  issues: write
+  id-token: write
+
+jobs:
+  resolve:
+    if: |
+      # (workflow_run disabled — see domiva-agent-lab#5)
+      # (
+      #   github.event_name == 'workflow_run' &&
+      #   github.event.workflow_run.conclusion == 'failure' &&
+      #   (
+      #     github.event.workflow_run.head_branch != 'main' ||
+      #     github.event.workflow_run.name == 'PR Review'
+      #   )
+      # ) ||
+      (
+        github.event_name == 'pull_request' &&
+        github.event.label.name == 'merge-conflict'
+      ) ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+      head_branch: ${{ steps.pr.outputs.head_branch }}
+      triggered_by: ${{ steps.pr.outputs.triggered_by }}
+    steps:
+      - name: Resolve PR number, branch, and trigger
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "pr_number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+            echo "head_branch=${{ inputs.head_branch }}" >> $GITHUB_OUTPUT
+            echo "triggered_by=${{ inputs.triggered_by }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "head_branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+            echo "triggered_by=Merge Conflict" >> $GITHUB_OUTPUT
+          # workflow_run disabled — see domiva-agent-lab#5
+          # elif [ "${{ github.event.workflow_run.name }}" = "PR Review" ]; then
+          #   ...artifact lookup...
+          # else
+          #   ...branch lookup...
+          fi
+
+  fix:
+    needs: resolve
+    if: needs.resolve.outputs.pr_number != ''
+    uses: Domiva-Life/domiva-workflows/.github/workflows/pr-fix.yml@main
+    with:
+      pr_number: ${{ needs.resolve.outputs.pr_number }}
+      head_branch: ${{ needs.resolve.outputs.head_branch }}
+      triggered_by: ${{ needs.resolve.outputs.triggered_by }}
+      run_id: ${{ github.event.workflow_run.id || 0 }}
+      repo: ${{ github.repository }}
+      stack: {{STACK}}
+      build_command: {{BUILD_COMMAND}}
+      test_command: {{TEST_COMMAND}}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      domiva_agent_app_id: ${{ secrets.DOMIVA_AGENT_APP_ID }}
+      domiva_agent_private_key: ${{ secrets.DOMIVA_AGENT_PRIVATE_KEY }}

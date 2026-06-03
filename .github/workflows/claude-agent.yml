@@ -1,0 +1,233 @@
+name: Claude Coding Agent (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        description: 'Stack type: flutter | java | react-native'
+        required: true
+        type: string
+      repo_instructions:
+        description: 'Repo-specific instructions appended to the shared prompt (stack validation, migration patterns, etc.)'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      anthropic_api_key:
+        required: true
+      domiva_agent_app_id:
+        required: true
+      domiva_agent_private_key:
+        required: true
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    env:
+      PLATFORM_REPO: Domiva-Life/domiva-workflows
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.domiva_agent_app_id }}
+          private-key: ${{ secrets.domiva_agent_private_key }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.bot-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Sync with main branch
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          git config user.email "agent@domiva.app"
+          git config user.name "Domiva Life Agent"
+
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          BEHIND=$(gh api repos/${{ github.repository }}/compare/${BRANCH}...main --jq '.behind_by')
+          if [ "$BEHIND" = "0" ]; then
+            echo "Branch is up to date with main."
+            exit 0
+          fi
+
+          echo "Branch is $BEHIND commit(s) behind main — merging..."
+          git fetch origin main
+          if git merge origin/main --no-edit; then
+            echo "Clean merge with main."
+          else
+            echo "::warning::Merge conflicts detected — Claude will need to resolve them."
+            git merge --abort
+          fi
+
+      # ── Stack setup ────────────────────────────────────────────────────────
+      - name: Setup Flutter via FVM
+        if: inputs.stack == 'flutter'
+        uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        with:
+          path: .fvmrc
+
+      - name: Flutter pub get
+        if: inputs.stack == 'flutter'
+        run: flutter pub get
+
+      - name: Set up Java 21
+        if: inputs.stack == 'java'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        if: inputs.stack == 'java'
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Set up Node
+        if: inputs.stack == 'react-native'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: npm install
+        if: inputs.stack == 'react-native'
+        run: npm install
+
+      # ── Context assembly ───────────────────────────────────────────────────
+      - name: Append shared conventions to CLAUDE.md
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          gh api repos/$PLATFORM_REPO/contents/CLAUDE-shared.md \
+            --jq '.content' | base64 -d >> CLAUDE.md
+
+      - name: Append agent learnings to CLAUDE.md
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          gh api repos/$PLATFORM_REPO/contents/agent-learnings/cross-repo.md \
+            --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
+          gh api repos/$PLATFORM_REPO/contents/agent-learnings/${{ inputs.stack }}.md \
+            --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
+
+      # ── Safety checks ──────────────────────────────────────────────────────
+      - name: Check Anthropic API credit
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+        run: |
+          RESPONSE=$(curl -s --max-time 10 -X POST https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d '{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}')
+          if echo "$RESPONSE" | grep -q '"type":"error"'; then
+            if echo "$RESPONSE" | grep -qi "credit\|billing\|balance"; then
+              echo "::error::Anthropic API billing issue — credit balance too low. Top up at https://console.anthropic.com and retry."
+              exit 1
+            else
+              ERROR_TYPE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('error',{}).get('type','unknown'))")
+              echo "::warning::Anthropic API check returned: $ERROR_TYPE"
+            fi
+          fi
+          echo "Anthropic API key OK"
+
+      # ── Compute stack-specific tool allowlist ──────────────────────────────
+      - name: Resolve tool allowlist
+        id: tools
+        run: |
+          BASE="Bash(gh pr view:*),Bash(gh issue comment:*),Bash(gh issue view:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git rm:*),Edit,MultiEdit,Write,Read,Glob,Grep,LS"
+          case "${{ inputs.stack }}" in
+            flutter)
+              echo "allowlist=${BASE},Bash(flutter pub get),Bash(dart run build_runner:*),Bash(flutter test:*)" >> $GITHUB_OUTPUT
+              ;;
+            java)
+              echo "allowlist=${BASE},Bash(gradle build),Bash(gradle test),Bash(gradle compileJava)" >> $GITHUB_OUTPUT
+              ;;
+            react-native)
+              echo "allowlist=${BASE},Bash(npm install),Bash(npx jest:*),Bash(npx react-native:*)" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "allowlist=${BASE}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      # ── Agent ──────────────────────────────────────────────────────────────
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropic_api_key }}
+          github_token: ${{ steps.bot-token.outputs.token }}
+          allowed_bots: domiva-life-agent[bot]
+          custom_instructions: |
+            You are implementing a complete feature. Your job is to build it right the first time.
+
+            ## Before writing any code — validate the issue spec
+
+            1. Read CLAUDE.md for project conventions and architecture
+            2. If `docs/adr/` exists, read all ADRs — they document non-obvious constraints
+            3. Check the issue spec against the actual codebase state — correct package names,
+               no references to removed patterns, dependencies actually in place
+
+            If the spec contradicts the architecture or contains stale assumptions that would lead to broken code:
+            - Post a comment on the issue explaining exactly what is misaligned
+            - Do NOT commit any code
+            - Stop
+
+            Only proceed once you are confident the spec is aligned with the current codebase.
+
+            ## Repo-specific instructions
+
+            ${{ inputs.repo_instructions }}
+
+            ## Implementation
+
+            Follow the issue spec fully — do not cut corners or defer parts of the spec.
+            Create all necessary files, models, services, tests, and configuration the spec requires.
+            Before writing any test, read the full source file of the class or widget being tested.
+            Run the full test suite before committing. Fix failures if you can within your remaining turns.
+            If tests are still failing when you run out of turns, commit and push what you have — the Fix Agent will handle it automatically. Do not leave work uncommitted.
+          claude_args: --max-turns 50 --allowedTools "${{ steps.tools.outputs.allowlist }}"
+
+      # ── PR ─────────────────────────────────────────────────────────────────
+      - name: Open PR if not already open
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "HEAD" ]; then
+            echo "On default branch or detached HEAD — no PR to open."
+            exit 0
+          fi
+          EXISTING=$(gh pr list --repo ${{ github.repository }} --head "$BRANCH" --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING already exists for branch $BRANCH."
+          else
+            COMMITS=$(git log origin/main..HEAD --oneline 2>/dev/null || true)
+            if [ -z "$COMMITS" ]; then
+              echo "No commits ahead of main — nothing to open a PR for."
+              exit 0
+            fi
+            ISSUE_NUMBER=$(echo "$BRANCH" | grep -oE '[0-9]+' | head -1)
+            TITLE=$(gh issue view "$ISSUE_NUMBER" --repo ${{ github.repository }} --json title --jq '.title' 2>/dev/null || echo "$BRANCH")
+
+            # App installation tokens do NOT suppress pull_request events (unlike GITHUB_TOKEN),
+            # so ci.yml triggers naturally when this PR is opened.
+            gh pr create \
+              --repo ${{ github.repository }} \
+              --head "$BRANCH" \
+              --base main \
+              --title "$TITLE" \
+              --body "Closes #${ISSUE_NUMBER}"
+          fi
