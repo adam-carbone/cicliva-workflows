@@ -394,12 +394,14 @@ jobs:
             5. For each CI failure, read the exact failing line and the test that targets it — do not guess.
             6. Fix ALL CI failures (if any) — run `${{ inputs.test_command }}` to verify, fix any new failures, repeat until clean.
             7. Fix ONLY the BLOCKING review findings — skip nits entirely, UNLESS a comment contains `<!-- fix-nit -->`. Treat `<!-- fix-nit -->` items as blocking.
+               If `<!-- fix-nit -->` items are present BUT blocking issues also exist, address the blockers first. In your PR comment, explicitly list the deferred nits by number and state they were skipped because blockers took priority this run.
             8. For every non-obvious fix, add an inline comment explaining BOTH what the code does AND why — especially for framework workarounds or anything that looks wrong at first glance. Note that it was introduced or changed by the fix agent and why.
             9. **Do NOT commit or push until the full test suite passes.**
             10. Commit and push your fixes to the branch.
             11. Post a comment on the PR:
                - Start with the hidden marker: `<!-- fix-agent-run -->`
                - List what was fixed, what (if anything) remains unresolved, and any tasks flagged as needing human action
+               - If nits were deferred because blockers took priority, list them explicitly: "Nits 1, 2, 3 deferred this run — blockers addressed first. Re-run `/fix` once blockers are resolved."
                - List any learnings written and at which level (code/repo/org)
             12. After posting, write learnings for any mistake likely to recur. Use the narrowest scope that fits:
                - **Code level** — inline comment explaining the constraint. Always do this first.
