@@ -87,7 +87,7 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Repo:** domiva-mobile
 **PR:** #66
 **Date:** 2026-06-03
-**What went wrong:** The ADR initially stated that the iOS 26 SDK mandate required raising `IPHONEOS_DEPLOYMENT_TARGET` to 16.0. This is incorrect — these are two independent settings.
+**What went wrong:** Engineering note 002 initially stated that the iOS 26 SDK mandate required raising `IPHONEOS_DEPLOYMENT_TARGET` to 16.0. This is incorrect — these are two independent settings.
 **Correct approach:** Apple's build SDK mandate (must build with iOS 26 SDK / Xcode 26 as of April 28, 2026) is a toolchain requirement and has no effect on the minimum deployment target. You can build with the iOS 26 SDK and target iOS 15 or 14 — App Store will accept it. `IPHONEOS_DEPLOYMENT_TARGET` is a product decision about the oldest iOS version your app supports, not a submission requirement. iOS 16 drops iPhone 7 / SE 1st gen / iPhone 6s (all capped at iOS 15); iPhone 8 and later including all iPhone 13 models are unaffected. Do NOT raise the deployment target citing the SDK mandate — they are unrelated.
 
 ## find.byType(ListView) matches hidden parent-route ListViews in GoRouter tests
