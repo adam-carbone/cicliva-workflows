@@ -188,7 +188,7 @@ Guidance body only (no inline text) — all lines treated as guidance.
 Run the install script from the root of your repo:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh)
+bash <(curl -fsSL -H "Authorization: token $(gh auth token)" https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh)
 ```
 
 The script will:
@@ -199,7 +199,7 @@ The script will:
 After install, verify everything is in place:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh) doctor
+bash <(curl -fsSL -H "Authorization: token $(gh auth token)" https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh) doctor
 ```
 
 `doctor` checks that all required workflow files exist, that each file matches the expected structure (correct triggers, jobs, and references), and that all required secrets are configured. Run it any time you suspect drift — after a manual edit, a merge, or when something in the pipeline stops behaving as expected.
@@ -207,7 +207,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Domiva-Life/domiva-workflows
 To interactively fix any issues doctor finds:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh) doctor --cure
+bash <(curl -fsSL -H "Authorization: token $(gh auth token)" https://raw.githubusercontent.com/Domiva-Life/domiva-workflows/main/scripts/agent-workflows.sh) doctor --cure
 ```
 
 `doctor --cure` walks through each failing check, shows you the diff, and prompts before applying each fix.
