@@ -83,6 +83,13 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **What went wrong:** Earlier learnings (PR #35) instructed agents to pin the iOS distribution workflow to `runs-on: macos-14` because `xcrun altool` was removed in Xcode 16. Those entries also implied altool was the correct upload tool as long as macos-14 was pinned. Both are now wrong: macos-14 runners will eventually be retired, and altool is a dead end.
 **Correct approach:** Use `runs-on: macos-15` (Xcode 16+) and Fastlane `upload_to_testflight` for iOS IPA uploads. `xcrun altool` was removed entirely in Xcode 16 — do NOT write any workflow that calls it. The Fastlane lane reads the App Store Connect API key from a JSON file written before the upload step. See PR #66 for the canonical workflow. Do NOT reintroduce `runs-on: macos-14` or `xcrun altool` — the previous learnings recommending them are superseded by this entry.
 
+## iOS build SDK requirement vs. deployment target — do not conflate these
+**Repo:** domiva-mobile
+**PR:** #66
+**Date:** 2026-06-03
+**What went wrong:** Engineering note 002 initially stated that the iOS 26 SDK mandate required raising `IPHONEOS_DEPLOYMENT_TARGET` to 16.0. This is incorrect — these are two independent settings.
+**Correct approach:** Apple's build SDK mandate (must build with iOS 26 SDK / Xcode 26 as of April 28, 2026) is a toolchain requirement and has no effect on the minimum deployment target. You can build with the iOS 26 SDK and target iOS 15 or 14 — App Store will accept it. `IPHONEOS_DEPLOYMENT_TARGET` is a product decision about the oldest iOS version your app supports, not a submission requirement. iOS 16 drops iPhone 7 / SE 1st gen / iPhone 6s (all capped at iOS 15); iPhone 8 and later including all iPhone 13 models are unaffected. Do NOT raise the deployment target citing the SDK mandate — they are unrelated.
+
 ## find.byType(ListView) matches hidden parent-route ListViews in GoRouter tests
 **Repo:** domiva-mobile
 **PR:** #13
