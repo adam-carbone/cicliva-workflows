@@ -45,14 +45,14 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Repo:** domiva-mobile
 **PR:** #44
 **Date:** 2026-06-01
-**What went wrong:** The PR #13 fix agent changed `reporter: dart-test` to `reporter: flutter-machine`, believing v2+ renamed the reporter. But `flutter-machine` does not exist in any version of dorny/test-reporter — that fix introduced a new CI failure. The original learning was recorded as if `flutter-machine` were correct, which would cause any agent reading it to re-introduce the broken value.
+**What went wrong:** The PR #13 fix agent changed `reporter: dart-test` to `reporter: flutter-machine`, believing v2+ renamed the reporter. But `flutter-machine` does not exist in any version of dorny/test-reporter -- that fix introduced a new CI failure. The original learning was recorded as if `flutter-machine` were correct, which would cause any agent reading it to re-introduce the broken value.
 **Correct approach:** Use `reporter: dart-json` for the output of `flutter test --machine`. `flutter-machine` is not a valid reporter name in any version of dorny/test-reporter. The correct reporter for Flutter/Dart test machine output is `dart-json`.
 
 ## Use a tall test viewport when form fields fill or exceed 800x600
 **Repo:** domiva-mobile
 **PR:** #13
 **Date:** 2026-05-17
-**What went wrong:** A widget test used ensureVisible(find.text('Save changes')) to scroll a submit button into view inside a deep form. ListView builds children lazily — the button was not in the render tree until it scrolled into the viewport, so ensureVisible threw "No element". Replacing with scrollUntilVisible also failed because TextFormField(maxLines: 3) creates an internal Scrollable inside EditableText, making find.byType(Scrollable) ambiguous ("Too many elements").
+**What went wrong:** A widget test used ensureVisible(find.text('Save changes')) to scroll a submit button into view inside a deep form. ListView builds children lazily -- the button was not in the render tree until it scrolled into the viewport, so ensureVisible threw "No element". Replacing with scrollUntilVisible also failed because TextFormField(maxLines: 3) creates an internal Scrollable inside EditableText, making find.byType(Scrollable) ambiguous ("Too many elements").
 **Correct approach:** When a form with 5+ fields plus NavigationBar (80dp) and AppBar (56dp) must all fit in a 600dp viewport, set `tester.view.physicalSize = const Size(800, 1200)` and `tester.view.devicePixelRatio = 1.0` at the top of the test, with `addTearDown(tester.view.reset)`. This ensures all form items are in the render tree with no scrolling needed. Note: any TextFormField with maxLines > 1 always creates a second internal Scrollable even with empty text.
 
 ## Placeholder navigation tests must be replaced when routes are wired
@@ -66,8 +66,8 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Repo:** domiva-mobile
 **PR:** #13
 **Date:** 2026-05-17
-**What went wrong:** _loadContact() silently left the edit form blank when getByUuid returned null (missing contact) or threw a database exception. The catch block was misleadingly commented "Contact not found" even though getSingleOrNull() never throws for missing rows — it only fires for real DB failures.
-**Correct approach:** (1) When getByUuid returns null, show a snackbar (e.g. "Contact not found") and call context.pop() — never leave the user on a blank edit form with no explanation. (2) In the catch block, show the error message (e.g. "Failed to load contact: $e") rather than swallowing it silently. Match the pattern used in _save(). (3) Add regression tests for both paths: FakeContactRepository with no matching UUID (null return), and with throwOnGetByUuid: true (DB error). When asserting snackbar text that also appears in a sibling screen body, use find.descendant(of: find.byType(SnackBar), matching: find.text(...)) to avoid ambiguity.
+**What went wrong:** _loadContact() silently left the edit form blank when getByUuid returned null (missing contact) or threw a database exception. The catch block was misleadingly commented "Contact not found" even though getSingleOrNull() never throws for missing rows -- it only fires for real DB failures.
+**Correct approach:** (1) When getByUuid returns null, show a snackbar (e.g. "Contact not found") and call context.pop() -- never leave the user on a blank edit form with no explanation. (2) In the catch block, show the error message (e.g. "Failed to load contact: $e") rather than swallowing it silently. Match the pattern used in _save(). (3) Add regression tests for both paths: FakeContactRepository with no matching UUID (null return), and with throwOnGetByUuid: true (DB error). When asserting snackbar text that also appears in a sibling screen body, use find.descendant(of: find.byType(SnackBar), matching: find.text(...)) to avoid ambiguity.
 
 ## Gitignored Flutter assets must be created in every build workflow
 **Repo:** domiva-mobile
@@ -76,13 +76,12 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **What went wrong:** distribute-android.yml was missing a step to create .env/dev.json before the build. The file is declared as a Flutter asset in pubspec.yaml but the .env/ directory is gitignored. ci.yml had the workaround but the distribution workflow did not, meaning flutter build appbundle --release would fail with a missing asset error on every push to main.
 **Correct approach:** Any workflow that runs a Flutter build (flutter build, flutter test, etc.) must create all gitignored asset files before running flutter pub get. Check pubspec.yaml assets: for gitignored paths and add a creation step to every workflow that builds. For production builds, use a secret (e.g. RELEASE_ENV_CONFIG) with a fallback to production-appropriate defaults (USE_MOCK: false).
 
-## Use Fastlane upload_to_testflight for iOS distribution — do not use xcrun altool
+## iOS distribution: use Fastlane on macos-15, not xcrun altool on macos-14
 **Repo:** domiva-mobile
 **PR:** #66
 **Date:** 2026-06-02
-**What went wrong:** xcrun altool was used for TestFlight uploads and the workflow was pinned to macos-14 (Xcode 15) to keep altool available. Apple then mandated the iOS 26 SDK for all new submissions, which requires Xcode 26 (macos-15+). This created an irreconcilable conflict: altool requires Xcode 15, the iOS 26 SDK requires Xcode 16+. The root mistake was choosing altool at all — Fastlane upload_to_testflight was the correct modern choice from the start.
-**Correct approach:** Use Fastlane upload_to_testflight for all TestFlight uploads. Run on macos-15 or macos-latest. Pass credentials via an ASC API key JSON file (key_id, issuer_id, key fields). Do NOT use xcrun altool in any form — it is gone in Xcode 16+ and Apple actively requires newer SDKs that are only available on Xcode 16+. Do NOT pin to macos-14 to preserve altool access.
-
+**What went wrong:** Earlier learnings (PR #35) instructed agents to pin the iOS distribution workflow to `runs-on: macos-14` because `xcrun altool` was removed in Xcode 16. Those entries also implied altool was the correct upload tool as long as macos-14 was pinned. Both are now wrong: macos-14 runners will eventually be retired, and altool is a dead end.
+**Correct approach:** Use `runs-on: macos-15` (Xcode 16+) and Fastlane `upload_to_testflight` for iOS IPA uploads. `xcrun altool` was removed entirely in Xcode 16 — do NOT write any workflow that calls it. The Fastlane lane reads the App Store Connect API key from a JSON file written before the upload step. See PR #66 for the canonical workflow. Do NOT reintroduce `runs-on: macos-14` or `xcrun altool` — the previous learnings recommending them are superseded by this entry.
 
 ## find.byType(ListView) matches hidden parent-route ListViews in GoRouter tests
 **Repo:** domiva-mobile
@@ -97,7 +96,7 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-28
 **What went wrong:** ios/ExportOptions.plist with signingStyle=manual was added to fix headless CI signing, but CODE_SIGN_STYLE=Automatic remained in project.pbxproj. ExportOptions.plist only controls xcodebuild -exportArchive (the export phase); the xcodebuild archive phase (which runs first inside flutter build ipa) still used Automatic signing, causing xcodebuild to contact Apple's provisioning portal and fail on runners with no Apple ID session.
 **Correct approach:** Set CODE_SIGN_STYLE=Manual on the Runner **Release** and **Profile** build configurations only in ios/Runner.xcodeproj/project.pbxproj. Also set `"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution"` on those same two configs so the archive phase selects the distribution cert (not the development cert) when only an iPhone Distribution certificate is installed in CI.
-**Do NOT set Manual on the Debug config.** Debug uses Automatic signing for local development — `flutter run` on physical devices relies on Xcode managing the development profile automatically. Setting Manual on Debug without a PROVISIONING_PROFILE_SPECIFIER breaks local device builds. The distribute workflow only runs `--release`, so Debug signing is irrelevant to CI distribution.
+**Do NOT set Manual on the Debug config.** Debug uses Automatic signing for local development -- `flutter run` on physical devices relies on Xcode managing the development profile automatically. Setting Manual on Debug without a PROVISIONING_PROFILE_SPECIFIER breaks local device builds. The distribute workflow only runs `--release`, so Debug signing is irrelevant to CI distribution.
 
 ## Android package rename requires directory migration that sandbox cannot delete
 **Repo:** domiva-mobile
@@ -105,3 +104,17 @@ To write a new entry, use the same API pattern shown in `cross-repo.md` but targ
 **Date:** 2026-05-30
 **What went wrong:** When renaming applicationId/namespace in build.gradle, the Kotlin source directory (e.g. com/domiva/mobile_application/) must also be renamed to match. The fix agent sandbox blocks file deletion (rm, git rm), so the old directory cannot be removed programmatically. Creating only the new file leaves a stale placeholder and cleared old file in the tree.
 **Correct approach:** Coding agents should handle Android package renames atomically using git mv (moves the file and tracks it in git). If a fix agent must handle it: (1) create the new MainActivity.kt at the correct path with the new package declaration, (2) overwrite the old file with only a comment (no class, no package declaration) to avoid a duplicate-class compile error, (3) add a prominent note in the PR comment that the old directory needs manual cleanup: git rm -r android/app/src/main/kotlin/com/
+
+## xcrun altool ignores --apiKeyPath — key must be in a hardcoded directory
+**Repo:** domiva-mobile
+**PR:** #63
+**Date:** 2026-06-02
+**What went wrong:** The upload step wrote the .p8 key to $RUNNER_TEMP/authkey.p8 and passed --apiKeyPath to xcrun altool. altool silently ignores --apiKeyPath entirely; it resolves the API key by name (AuthKey_{KEY_ID}.p8) from a hardcoded set of directories only: ~/private_keys, ~/.private_keys, ~/.appstoreconnect/private_keys, or ./private_keys. Writing to any other path causes a "Failed to load AuthKey file" authentication error.
+**Correct approach:** Write the .p8 to ~/.appstoreconnect/private_keys/AuthKey_{APPLE_API_KEY_ID}.p8 (create the directory with mkdir -p first). Do NOT pass --apiKeyPath -- it has no effect and will silently fail if the file is not also in one of the hardcoded locations.
+
+## Multiline secrets must be escaped with jq when written to JSON files
+**Repo:** domiva-mobile
+**PR:** #66
+**Date:** 2026-06-02
+**What went wrong:** The "Write App Store Connect API key" step wrote the APPLE_API_KEY secret (a raw .p8 PEM file) directly into a JSON heredoc via `"key": "$APPLE_API_KEY"`. Raw .p8 files contain literal newline characters; embedding them inside a JSON string value violates RFC 8259 §7. Fastlane calls JSON.parse on this file and raises JSON::ParserError on every run.
+**Correct approach:** Use `jq -Rs` to construct the JSON — `-R` reads raw text (not JSON), `-s` slurps all lines into one string with newlines escaped as `\n`. Example: `printf '%s' "$APPLE_API_KEY" | jq -Rs --arg kid "$APPLE_API_KEY_ID" --arg iid "$APPLE_API_ISSUER_ID" '{key_id: $kid, issuer_id: $iid, key: ., in_house: false}' > "$API_KEY_PATH"`. Never interpolate a multiline secret directly into a JSON string — always route it through jq.
