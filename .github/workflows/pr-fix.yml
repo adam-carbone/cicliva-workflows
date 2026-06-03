@@ -298,18 +298,20 @@ jobs:
 
             // Blocking reviews are only relevant when triggered by PR Review —
             // PR Review runs after CI is green, so CHANGES_REQUESTED means code issues.
+            // A CHANGES_REQUESTED is only active if no APPROVED review was submitted after it.
             let blockingReviews = [];
             if (ciGreen) {
               const reviewsResponse = await github.rest.pulls.listReviews({
                 owner, repo,
                 pull_number: prNumber
               });
-              const latestChangesRequest = reviewsResponse.data
-                .filter(r => r.state === 'CHANGES_REQUESTED')
-                .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))[0];
-              blockingReviews = (latestChangesRequest && latestChangesRequest.body)
-                ? [latestChangesRequest.body]
-                : [];
+              const reviews = reviewsResponse.data
+                .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+              const latestCR = reviews.find(r => r.state === 'CHANGES_REQUESTED');
+              const latestApproval = reviews.find(r => r.state === 'APPROVED');
+              const hasActiveCR = latestCR &&
+                (!latestApproval || new Date(latestCR.submitted_at) > new Date(latestApproval.submitted_at));
+              blockingReviews = (hasActiveCR && latestCR.body) ? [latestCR.body] : [];
             }
 
             core.setOutput('should_skip', 'false');
