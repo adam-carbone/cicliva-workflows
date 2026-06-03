@@ -419,20 +419,18 @@ jobs:
                - **Org level** — `domiva-workflows/agent-learnings/${{ inputs.stack }}.md` or `agent-learnings/cross-repo.md` for patterns that apply across all Domiva repos.
                - Do NOT write learnings for one-off mistakes, things already covered, or anything too vague to be actionable.
                - Do NOT contradict an existing learning — correct it instead and explain why the original was wrong.
-            13. If there was nothing to fix (no CI failures, no blocking reviews) and you made NO new commits:
-               - Trigger PR Review to close the loop:
-                 gh workflow run "PR Review" --repo ${{ inputs.repo }} --field pr_number=${{ fromJSON(steps.ci_context.outputs.result).prNumber }}
-
             This is attempt ${{ fromJSON(steps.ci_context.outputs.result).fixAttempt }} of ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }}. After ${{ fromJSON(steps.ci_context.outputs.result).maxAttempts }} attempts, the agent stops and escalates to a human.
 
       - name: Re-trigger PR Review if nothing was fixed
         # Fires when Claude was skipped (should_skip=true) AND when CI is green with no
         # blocking reviews — i.e. the fix agent determined there was nothing to do locally.
-        # Without this step, the re-review trigger only lives inside Claude's prompt (instruction 14).
-        # If Claude is skipped for any reason (cap reached, no issues found), instruction 14
+        # Without this step, the re-review trigger only lives inside Claude's prompt.
+        # If Claude is skipped for any reason (cap reached, no issues found), the prompt
         # never runs and the PR is left stuck with CHANGES_REQUESTED and no forward progress.
         # This step is the workflow-level safety net that closes the loop regardless of whether
-        # Claude ran. (Fixed: PR #XX, root-caused in domiva-mobile PR #63 incident.)
+        # Claude ran. (Root-caused in domiva-mobile PR #63 incident.)
+        # Guard: only re-triggers if CI is green, no CHANGES_REQUESTED, AND no existing APPROVED.
+        # The APPROVED guard prevents the dismiss→approve→dismiss loop (bug fixed in this branch).
         if: |
           steps.ci_context.outputs.should_skip == 'true' ||
           (steps.ci_context.outputs.should_skip != 'true' &&
@@ -443,13 +441,13 @@ jobs:
         run: |
           PR_NUMBER="${{ fromJSON(steps.ci_context.outputs.result).prNumber || inputs.pr_number }}"
           REPO="${{ inputs.repo }}"
-          # Only re-trigger if CI is green and no CHANGES_REQUESTED remain
           OPEN_BLOCKERS=$(gh api repos/$REPO/pulls/$PR_NUMBER/reviews \
             --jq '[.[] | select(.state == "CHANGES_REQUESTED")] | length' 2>/dev/null || echo "0")
           CI_STATE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup \
             --jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length' 2>/dev/null || echo "0")
-          # Also check for an existing APPROVED review — if the PR is already approved and
-          # CI is green, re-triggering PR Review creates a dismiss→approve→dismiss loop.
+          # APPROVED guard: if already approved and CI is green, re-triggering creates a
+          # dismiss→approve→dismiss loop. The dismiss step is now also gated on blockers,
+          # but this guard is a second line of defense.
           APPROVED=$(gh api repos/$REPO/pulls/$PR_NUMBER/reviews \
             --jq '[.[] | select(.state == "APPROVED")] | length' 2>/dev/null || echo "0")
           if [ "$OPEN_BLOCKERS" = "0" ] && [ "$CI_STATE" = "0" ] && [ "$APPROVED" = "0" ]; then
@@ -458,7 +456,5 @@ jobs:
           else
             echo "Skipping re-trigger: blockers=$OPEN_BLOCKERS, CI failures=$CI_STATE, approved=$APPROVED"
           fi
-
-
 
 
