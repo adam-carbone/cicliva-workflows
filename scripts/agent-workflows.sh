@@ -164,21 +164,15 @@ open_url() {
   fi
 }
 
-# Build a URL-encoded GitHub App manifest
-build_app_manifest() {
+print_app_settings() {
   local name="$1"
-  local permissions_json="$2"
-  python3 -c "
-import json, urllib.parse, sys
-m = {
-  'name': sys.argv[1],
-  'url': 'https://github.com',
-  'hook_attributes': {'active': False},
-  'public': False,
-  'default_permissions': json.loads(sys.argv[2])
-}
-print(urllib.parse.quote(json.dumps(m)))
-" "$name" "$permissions_json"
+  local permissions="$2"
+  echo "  GitHub App name:  $name"
+  echo "  Homepage URL:     https://github.com"
+  echo "  Webhook:          disable (uncheck Active)"
+  echo "  Permissions:"
+  echo "$permissions" | sed 's/^/    /'
+  echo "  Where installed:  Only on this account"
 }
 
 setup_github_apps() {
@@ -203,10 +197,9 @@ setup_github_apps() {
   gh secret set ANTHROPIC_API_KEY --repo "$repo" --body "$ANTHROPIC_KEY"
   ok "ANTHROPIC_API_KEY set."
 
-  # ── Agent app ─────────────────────────────────────────────────────────────
+  # ── App names ─────────────────────────────────────────────────────────────
   echo ""
   echo "GitHub App Setup — you need a coding agent and a reviewer."
-  echo "We'll open GitHub with permissions pre-filled for each."
   echo ""
   read -r -p "  Name your coding agent [Cicliva Agent]: " AGENT_NAME
   [[ -z "$AGENT_NAME" ]] && AGENT_NAME="Cicliva Agent"
@@ -214,20 +207,26 @@ setup_github_apps() {
   read -r -p "  Name your reviewer [Cicliva Reviewer]: " REVIEWER_NAME
   [[ -z "$REVIEWER_NAME" ]] && REVIEWER_NAME="Cicliva Reviewer"
 
+  # ── Agent app ─────────────────────────────────────────────────────────────
   echo ""
   echo "Step 1 of 2 — $AGENT_NAME"
   echo ""
-
-  local agent_manifest
-  agent_manifest=$(build_app_manifest "$AGENT_NAME" \
-    '{"contents":"write","pull_requests":"write","issues":"write","actions":"read","metadata":"read"}')
-
-  echo "  Opening GitHub — permissions are pre-filled."
-  echo "  1. Click 'Create GitHub App'"
-  echo "  2. Copy the App ID (shown at the top of the next page)"
-  echo "  3. Click 'Generate a private key' — save the .pem file"
+  echo "  Opening github.com/settings/apps/new — fill in these values:"
   echo ""
-  open_url "https://github.com/settings/apps/new?manifest=${agent_manifest}"
+  print_app_settings "$AGENT_NAME" \
+"Repository permissions:
+  Contents        → Read and write
+  Issues          → Read and write
+  Pull requests   → Read and write
+  Actions         → Read-only
+  Metadata        → Read-only (required)"
+  echo ""
+  open_url "https://github.com/settings/apps/new"
+
+  echo "  After clicking 'Create GitHub App':"
+  echo "    - Copy the App ID shown at the top of the settings page"
+  echo "    - Scroll down → 'Generate a private key' → save the .pem file"
+  echo ""
 
   local AGENT_APP_ID=""
   while [[ -z "$AGENT_APP_ID" ]]; do
@@ -247,17 +246,20 @@ setup_github_apps() {
   echo ""
   echo "Step 2 of 2 — $REVIEWER_NAME"
   echo ""
-
-  local reviewer_manifest
-  reviewer_manifest=$(build_app_manifest "$REVIEWER_NAME" \
-    '{"contents":"read","pull_requests":"write","issues":"write","metadata":"read"}')
-
-  echo "  Opening GitHub — permissions are pre-filled."
-  echo "  1. Click 'Create GitHub App'"
-  echo "  2. Copy the App ID"
-  echo "  3. Generate and save the private key"
+  echo "  Opening github.com/settings/apps/new — fill in these values:"
   echo ""
-  open_url "https://github.com/settings/apps/new?manifest=${reviewer_manifest}"
+  print_app_settings "$REVIEWER_NAME" \
+"Repository permissions:
+  Issues          → Read and write
+  Pull requests   → Read and write
+  Metadata        → Read-only (required)"
+  echo ""
+  open_url "https://github.com/settings/apps/new"
+
+  echo "  After clicking 'Create GitHub App':"
+  echo "    - Copy the App ID"
+  echo "    - Generate and save the private key"
+  echo ""
 
   local REVIEWER_APP_ID=""
   while [[ -z "$REVIEWER_APP_ID" ]]; do
