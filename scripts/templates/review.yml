@@ -81,8 +81,8 @@ jobs:
       stack: {{STACK}}
     secrets:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-      domiva_reviewer_app_id: ${{ secrets.DOMIVA_REVIEWER_APP_ID }}
-      domiva_reviewer_private_key: ${{ secrets.DOMIVA_REVIEWER_PRIVATE_KEY }}
+      domiva_reviewer_app_id: ${{ secrets.REVIEWER_APP_ID }}
+      domiva_reviewer_private_key: ${{ secrets.REVIEWER_PRIVATE_KEY }}
 
   dispatch-fix:
     needs: [resolve, review]

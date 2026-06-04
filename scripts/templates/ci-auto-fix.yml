@@ -87,5 +87,5 @@ jobs:
       test_command: {{TEST_COMMAND}}
     secrets:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-      domiva_agent_app_id: ${{ secrets.DOMIVA_AGENT_APP_ID }}
-      domiva_agent_private_key: ${{ secrets.DOMIVA_AGENT_PRIVATE_KEY }}
+      domiva_agent_app_id: ${{ secrets.AGENT_APP_ID }}
+      domiva_agent_private_key: ${{ secrets.AGENT_PRIVATE_KEY }}

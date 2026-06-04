@@ -47,13 +47,13 @@ test_command_for() {
 
 REQUIRED_SECRETS=(
   ANTHROPIC_API_KEY
-  DOMIVA_AGENT_APP_ID
-  DOMIVA_AGENT_PRIVATE_KEY
-  DOMIVA_REVIEWER_APP_ID
-  DOMIVA_REVIEWER_PRIVATE_KEY
+  AGENT_APP_ID
+  AGENT_PRIVATE_KEY
+  REVIEWER_APP_ID
+  REVIEWER_PRIVATE_KEY
 )
 
-WORKFLOW_FILES=(review.yml ci-auto-fix.yml)
+WORKFLOW_FILES=(claude.yml review.yml ci-auto-fix.yml)
 DOCTOR_CHECKS=()  # built dynamically in cmd_doctor based on configured workflow repo
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
@@ -148,6 +148,7 @@ apply_template() {
     -e "s|{{BUILD_COMMAND}}|$build_cmd|g" \
     -e "s|{{TEST_COMMAND}}|$test_cmd|g" \
     -e "s|{{WORKFLOW_REPO}}|$workflow_repo|g" \
+    -e "s|{{REPO_INSTRUCTIONS}}|Follow the project conventions and any CLAUDE.md instructions.|g" \
     "$template_file"
 }
 
