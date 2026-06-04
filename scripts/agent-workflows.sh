@@ -152,61 +152,155 @@ apply_template() {
     "$template_file"
 }
 
-# Which secrets take a file path (PEM) vs a plain value
-secret_is_file() {
-  case "$1" in
-    *_PRIVATE_KEY) return 0 ;;
-    *)             return 1 ;;
-  esac
+open_url() {
+  local url="$1"
+  if command -v open &>/dev/null; then
+    open "$url"
+  elif command -v xdg-open &>/dev/null; then
+    xdg-open "$url" 2>/dev/null
+  else
+    echo "  Open this URL in your browser:"
+    echo "  $url"
+  fi
 }
 
-setup_secrets() {
+# Build a URL-encoded GitHub App manifest
+build_app_manifest() {
+  local name="$1"
+  local permissions_json="$2"
+  python3 -c "
+import json, urllib.parse, sys
+m = {
+  'name': sys.argv[1],
+  'url': 'https://github.com',
+  'hook_attributes': {'active': False},
+  'public': False,
+  'default_permissions': json.loads(sys.argv[2])
+}
+print(urllib.parse.quote(json.dumps(m)))
+" "$name" "$permissions_json"
+}
+
+setup_github_apps() {
   local repo="$1"
-  local org
-  org="$(echo "$repo" | cut -d'/' -f1)"
 
   echo ""
-  read -r -p "Set up secrets now? [Y/n] " confirm
-  [[ -z "$confirm" || "$confirm" =~ ^[Yy]$ ]] || { echo "Skipping secrets — set them manually in GitHub repo settings."; return; }
+  read -r -p "Set up GitHub Apps and secrets now? [Y/n] " confirm
+  [[ -z "$confirm" || "$confirm" =~ ^[Yy]$ ]] || {
+    echo "Skipping — set ANTHROPIC_API_KEY, AGENT_APP_ID, AGENT_PRIVATE_KEY,"
+    echo "           REVIEWER_APP_ID, REVIEWER_PRIVATE_KEY manually in repo settings."
+    return
+  }
 
-  # Check what's already configured so we can skip
-  local repo_secrets org_secrets all_secrets
-  repo_secrets="$(gh secret list --repo "$repo" --json name --jq '.[].name' 2>/dev/null || echo "")"
-  org_secrets="$(gh secret list --org "$org" --json name --jq '.[].name' 2>/dev/null || echo "")"
-  all_secrets="$(printf '%s\n%s' "$repo_secrets" "$org_secrets")"
-
+  # ── Anthropic API key ─────────────────────────────────────────────────────
   echo ""
-  for secret in "${REQUIRED_SECRETS[@]}"; do
-    if echo "$all_secrets" | grep -qx "$secret"; then
-      echo "  $secret — already configured, skipping"
-      continue
-    fi
-
-    if secret_is_file "$secret"; then
-      # PEM file — prompt for path
-      while true; do
-        read -r -p "  $secret — path to PEM file: " filepath
-        filepath="${filepath/#\~/$HOME}"  # expand ~ manually (read doesn't do it)
-        if [[ -f "$filepath" ]]; then
-          gh secret set "$secret" --repo "$repo" < "$filepath"
-          echo "  $secret set."
-          break
-        else
-          echo "  File not found: $filepath"
-        fi
-      done
-    else
-      # Plain value — masked input
-      local value=""
-      while [[ -z "$value" ]]; do
-        read -r -s -p "  $secret: " value
-        echo ""
-        [[ -z "$value" ]] && echo "  Value cannot be empty."
-      done
-      gh secret set "$secret" --repo "$repo" --body "$value"
-      echo "  $secret set."
-    fi
+  local ANTHROPIC_KEY=""
+  while [[ -z "$ANTHROPIC_KEY" ]]; do
+    read -r -s -p "  ANTHROPIC_API_KEY: " ANTHROPIC_KEY
+    echo ""
+    [[ -z "$ANTHROPIC_KEY" ]] && echo "  Value cannot be empty."
   done
+  gh secret set ANTHROPIC_API_KEY --repo "$repo" --body "$ANTHROPIC_KEY"
+  ok "ANTHROPIC_API_KEY set."
+
+  # ── Agent app ─────────────────────────────────────────────────────────────
+  echo ""
+  echo "GitHub App Setup — you need a coding agent and a reviewer."
+  echo "We'll open GitHub with permissions pre-filled for each."
+  echo ""
+  read -r -p "  Name your coding agent [Cicliva Agent]: " AGENT_NAME
+  [[ -z "$AGENT_NAME" ]] && AGENT_NAME="Cicliva Agent"
+
+  read -r -p "  Name your reviewer [Cicliva Reviewer]: " REVIEWER_NAME
+  [[ -z "$REVIEWER_NAME" ]] && REVIEWER_NAME="Cicliva Reviewer"
+
+  echo ""
+  echo "Step 1 of 2 — $AGENT_NAME"
+  echo ""
+
+  local agent_manifest
+  agent_manifest=$(build_app_manifest "$AGENT_NAME" \
+    '{"contents":"write","pull_requests":"write","issues":"write","actions":"read","metadata":"read"}')
+
+  echo "  Opening GitHub — permissions are pre-filled."
+  echo "  1. Click 'Create GitHub App'"
+  echo "  2. Copy the App ID (shown at the top of the next page)"
+  echo "  3. Click 'Generate a private key' — save the .pem file"
+  echo ""
+  open_url "https://github.com/settings/apps/new?manifest=${agent_manifest}"
+
+  local AGENT_APP_ID=""
+  while [[ -z "$AGENT_APP_ID" ]]; do
+    read -r -p "  App ID: " AGENT_APP_ID
+    [[ -z "$AGENT_APP_ID" ]] && echo "  App ID cannot be empty."
+  done
+
+  local AGENT_PEM=""
+  while true; do
+    read -r -p "  Path to .pem file: " AGENT_PEM
+    AGENT_PEM="${AGENT_PEM/#\~/$HOME}"
+    [[ -f "$AGENT_PEM" ]] && break
+    echo "  File not found: $AGENT_PEM"
+  done
+
+  # ── Reviewer app ──────────────────────────────────────────────────────────
+  echo ""
+  echo "Step 2 of 2 — $REVIEWER_NAME"
+  echo ""
+
+  local reviewer_manifest
+  reviewer_manifest=$(build_app_manifest "$REVIEWER_NAME" \
+    '{"contents":"read","pull_requests":"write","issues":"write","metadata":"read"}')
+
+  echo "  Opening GitHub — permissions are pre-filled."
+  echo "  1. Click 'Create GitHub App'"
+  echo "  2. Copy the App ID"
+  echo "  3. Generate and save the private key"
+  echo ""
+  open_url "https://github.com/settings/apps/new?manifest=${reviewer_manifest}"
+
+  local REVIEWER_APP_ID=""
+  while [[ -z "$REVIEWER_APP_ID" ]]; do
+    read -r -p "  App ID: " REVIEWER_APP_ID
+    [[ -z "$REVIEWER_APP_ID" ]] && echo "  App ID cannot be empty."
+  done
+
+  local REVIEWER_PEM=""
+  while true; do
+    read -r -p "  Path to .pem file: " REVIEWER_PEM
+    REVIEWER_PEM="${REVIEWER_PEM/#\~/$HOME}"
+    [[ -f "$REVIEWER_PEM" ]] && break
+    echo "  File not found: $REVIEWER_PEM"
+  done
+
+  # ── Set secrets ───────────────────────────────────────────────────────────
+  echo ""
+  gh secret set AGENT_APP_ID      --repo "$repo" --body "$AGENT_APP_ID"
+  gh secret set AGENT_PRIVATE_KEY --repo "$repo" < "$AGENT_PEM"
+  gh secret set REVIEWER_APP_ID      --repo "$repo" --body "$REVIEWER_APP_ID"
+  gh secret set REVIEWER_PRIVATE_KEY --repo "$repo" < "$REVIEWER_PEM"
+  ok "AGENT_APP_ID set."
+  ok "AGENT_PRIVATE_KEY set."
+  ok "REVIEWER_APP_ID set."
+  ok "REVIEWER_PRIVATE_KEY set."
+
+  # ── Install apps on account ───────────────────────────────────────────────
+  echo ""
+  echo "Install both apps on your account/org to activate them."
+  echo ""
+
+  local agent_slug reviewer_slug
+  agent_slug=$(echo "$AGENT_NAME" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-')
+  reviewer_slug=$(echo "$REVIEWER_NAME" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-')
+
+  open_url "https://github.com/apps/${agent_slug}/installations/new"
+  read -r -p "  Press Enter after installing $AGENT_NAME on your account..."
+
+  open_url "https://github.com/apps/${reviewer_slug}/installations/new"
+  read -r -p "  Press Enter after installing $REVIEWER_NAME on your account..."
+
+  echo ""
+  ok "GitHub Apps configured."
 }
 
 show_diff_and_prompt() {
@@ -289,13 +383,10 @@ cmd_install() {
   # Save workflow repo to config for doctor to use
   echo "WORKFLOW_REPO=$workflow_repo" > "$conf_file"
 
-  setup_secrets "$repo"
+  setup_github_apps "$repo"
 
   echo ""
-  echo "Done. Next steps:"
-  echo "  1. Register a GitHub App for the agent and reviewer"
-  echo "  2. Open a PR and post '@claude' on an issue to test the loop"
-  echo ""
+  echo "Done. Open a PR and post '@claude' on an issue to test the loop."
   echo "Run 'agent-workflows.sh doctor' at any time to check health."
 }
 
