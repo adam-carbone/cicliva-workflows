@@ -388,8 +388,9 @@ cmd_install() {
   setup_github_apps "$repo"
 
   echo ""
-  echo "Done. Open a PR and post '@claude' on an issue to test the loop."
-  echo "Run 'agent-workflows.sh doctor' at any time to check health."
+  echo "Done. Create a GitHub issue with '@claude' in the body to test the loop."
+  echo "Run this any time to check health:"
+  echo "  bash <(curl -fsSL https://storage.googleapis.com/cicliva-scripts/agent-workflows.sh) doctor"
 }
 
 # ─── doctor ───────────────────────────────────────────────────────────────────
