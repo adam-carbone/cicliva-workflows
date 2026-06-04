@@ -1,0 +1,43 @@
+name: Publish Public Scripts
+
+# Publishes scripts that must be publicly reachable before a customer has a token.
+# Only runs in the cicliva org — no-op everywhere else.
+#
+# Required secrets (set in cicliva org or cicliva-workflows repo):
+#   CICLIVA_GCS_SA_KEY        — JSON service account key with Storage Object Admin
+#                               on the scripts bucket
+#   CICLIVA_SCRIPTS_BUCKET    — bucket name only, e.g. cicliva-scripts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/cicliva-setup.sh
+      - scripts/agent-workflows.sh
+
+jobs:
+  publish:
+    if: github.repository_owner == 'cicliva'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.CICLIVA_GCS_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Publish scripts
+        env:
+          BUCKET: ${{ secrets.CICLIVA_SCRIPTS_BUCKET }}
+        run: |
+          gsutil cp scripts/cicliva-setup.sh   gs://$BUCKET/cicliva-setup.sh
+          gsutil cp scripts/agent-workflows.sh  gs://$BUCKET/agent-workflows.sh
+          gsutil acl ch -u AllUsers:R gs://$BUCKET/cicliva-setup.sh
+          gsutil acl ch -u AllUsers:R gs://$BUCKET/agent-workflows.sh
+          echo "Published:"
+          echo "  https://storage.googleapis.com/$BUCKET/cicliva-setup.sh"
+          echo "  https://storage.googleapis.com/$BUCKET/agent-workflows.sh"

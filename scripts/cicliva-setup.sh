@@ -15,6 +15,7 @@ SHA_FILE="$CICLIVA_DIR/repo-sha"
 ORG_FILE="$CICLIVA_DIR/org"
 CICLIVA_SOURCE="cicliva/cicliva-workflows"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GCS_BASE="https://storage.googleapis.com/cicliva-scripts"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -183,6 +184,19 @@ check_for_updates() {
   fi
 }
 
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+# Run agent-workflows.sh — use the local copy if we're running from a clone,
+# otherwise fetch from GCS. Customers running via curl-to-bash won't have a
+# local copy; they should always be able to reach the public GCS URL.
+run_agent_workflows() {
+  if [[ -f "$SCRIPT_DIR/agent-workflows.sh" ]]; then
+    bash "$SCRIPT_DIR/agent-workflows.sh" "$@"
+  else
+    bash <(curl -fsSL "$GCS_BASE/agent-workflows.sh") "$@"
+  fi
+}
+
 # ── commands ──────────────────────────────────────────────────────────────────
 
 cmd_install() {
@@ -196,7 +210,7 @@ cmd_install() {
   mirror_repo
 
   echo ""
-  bash "$SCRIPT_DIR/agent-workflows.sh" install \
+  run_agent_workflows install \
     --workflow-repo "$CUSTOMER_ORG/cicliva-workflows"
 }
 
@@ -209,14 +223,16 @@ cmd_update() {
   [[ -f "$ORG_FILE" ]]   || die "No org found — run cicliva-setup.sh first."
 
   TOKEN=$(cat "$TOKEN_FILE")
-  CUSTOMER_ORG=$(cat "$ORG_FILE")
+  CUSTOMER_ORG=$(head -1 "$ORG_FILE")
 
   validate_token
   mirror_repo
 
   echo ""
   echo "cicliva-workflows updated."
-  echo "Run agent-workflows.sh doctor --cure to apply any workflow file changes to this repo."
+  echo "Run this to apply any workflow file changes to this repo:"
+  echo ""
+  echo "  bash <(curl -fsSL $GCS_BASE/agent-workflows.sh) doctor --cure"
 }
 
 # ── entry point ───────────────────────────────────────────────────────────────
