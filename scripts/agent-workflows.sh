@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# agent-workflows.sh — install and maintain Domiva agent workflow files in a repo
+# agent-workflows.sh — install and maintain agent workflow files in a repo
 #
 # Usage:
-#   agent-workflows.sh [install] [--stack STACK] [--repo OWNER/NAME]
+#   agent-workflows.sh [install] [--stack STACK] [--repo OWNER/NAME] [--workflow-repo OWNER/NAME]
 #   agent-workflows.sh doctor [--cure] [--repo OWNER/NAME]
 #   agent-workflows.sh -h | --help
 #
@@ -12,15 +12,18 @@
 #   doctor --cure       Same, but interactively apply fixes
 #
 # Options:
-#   --stack STACK       Stack type: flutter | java | react-native
-#   --repo OWNER/NAME   Target repo (defaults to current directory's remote)
-#   --cure              (doctor only) Prompt to apply each fix found
-#   -h, --help          Show this help
+#   --stack STACK            Stack type: flutter | java | react-native
+#   --repo OWNER/NAME        Target repo (defaults to current directory's remote)
+#   --workflow-repo OWNER/NAME  Workflow library repo (defaults to Domiva-Life/domiva-workflows)
+#   --cure                   (doctor only) Prompt to apply each fix found
+#   -h, --help               Show this help
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATES_DIR="$SCRIPT_DIR/templates"
+AGENT_WORKFLOWS_CONF=".github/.agent-workflows"
+DEFAULT_WORKFLOW_REPO="Domiva-Life/domiva-workflows"
 
 SUPPORTED_STACKS="flutter java react-native"
 
@@ -51,18 +54,7 @@ REQUIRED_SECRETS=(
 )
 
 WORKFLOW_FILES=(review.yml ci-auto-fix.yml)
-
-# Structural checks: grep patterns that must be present in each file
-# Format: "filename|pattern|description"
-DOCTOR_CHECKS=(
-  "review.yml|uses: Domiva-Life/domiva-workflows/.github/workflows/pr-review.yml@main|calls pr-review.yml@main"
-  "review.yml|dispatch-fix:|dispatch-fix job present"
-  "review.yml|workflow_dispatch|workflow_dispatch trigger present"
-  "review.yml|domiva-agent-lab#5|workflow_run disabled with issue reference"
-  "ci-auto-fix.yml|uses: Domiva-Life/domiva-workflows/.github/workflows/pr-fix.yml@main|calls pr-fix.yml@main"
-  "ci-auto-fix.yml|workflow_dispatch|workflow_dispatch trigger present"
-  "ci-auto-fix.yml|domiva-agent-lab#5|workflow_run disabled with issue reference"
-)
+DOCTOR_CHECKS=()  # built dynamically in cmd_doctor based on configured workflow repo
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -146,6 +138,7 @@ prompt_stack() {
 apply_template() {
   local template_file="$1"
   local stack="$2"
+  local workflow_repo="${3:-$DEFAULT_WORKFLOW_REPO}"
   local build_cmd test_cmd
   build_cmd="$(build_command_for "$stack")"
   test_cmd="$(test_command_for "$stack")"
@@ -154,6 +147,7 @@ apply_template() {
     -e "s|{{STACK}}|$stack|g" \
     -e "s|{{BUILD_COMMAND}}|$build_cmd|g" \
     -e "s|{{TEST_COMMAND}}|$test_cmd|g" \
+    -e "s|{{WORKFLOW_REPO}}|$workflow_repo|g" \
     "$template_file"
 }
 
@@ -239,13 +233,14 @@ show_diff_and_prompt() {
 # ─── install ──────────────────────────────────────────────────────────────────
 
 cmd_install() {
-  local stack="" repo=""
+  local stack="" repo="" workflow_repo=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --stack) stack="$2"; shift 2 ;;
-      --repo)  repo="$2";  shift 2 ;;
-      *)       die "Unknown option: $1" ;;
+      --stack)         stack="$2";         shift 2 ;;
+      --repo)          repo="$2";          shift 2 ;;
+      --workflow-repo) workflow_repo="$2"; shift 2 ;;
+      *)               die "Unknown option: $1" ;;
     esac
   done
 
@@ -259,8 +254,17 @@ cmd_install() {
 
   build_command_for "$stack" > /dev/null  # validates stack
 
-  local workflows_dir
-  workflows_dir="$(git rev-parse --show-toplevel 2>/dev/null || echo ".")/.github/workflows"
+  # Resolve workflow repo — use provided value, then saved config, then default
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
+  local conf_file="$repo_root/$AGENT_WORKFLOWS_CONF"
+
+  if [[ -z "$workflow_repo" && -f "$conf_file" ]]; then
+    workflow_repo="$(grep '^WORKFLOW_REPO=' "$conf_file" | cut -d'=' -f2)"
+  fi
+  [[ -z "$workflow_repo" ]] && workflow_repo="$DEFAULT_WORKFLOW_REPO"
+
+  local workflows_dir="$repo_root/.github/workflows"
   mkdir -p "$workflows_dir"
 
   echo ""
@@ -276,16 +280,19 @@ cmd_install() {
     if [[ -f "$dest" ]]; then
       echo "  Skipping $file (already exists — run 'doctor --cure' to update)"
     else
-      apply_template "$template" "$stack" > "$dest"
+      apply_template "$template" "$stack" "$workflow_repo" > "$dest"
       echo "  Created $file"
     fi
   done
+
+  # Save workflow repo to config for doctor to use
+  echo "WORKFLOW_REPO=$workflow_repo" > "$conf_file"
 
   setup_secrets "$repo"
 
   echo ""
   echo "Done. Next steps:"
-  echo "  1. Register a GitHub App for the agent and reviewer (see domiva-workflows README)"
+  echo "  1. Register a GitHub App for the agent and reviewer"
   echo "  2. Open a PR and post '@claude' on an issue to test the loop"
   echo ""
   echo "Run 'agent-workflows.sh doctor' at any time to check health."
@@ -310,6 +317,26 @@ cmd_doctor() {
   local repo_root
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
   local workflows_dir="$repo_root/.github/workflows"
+
+  # Read workflow repo from config if present
+  local conf_file="$repo_root/$AGENT_WORKFLOWS_CONF"
+  local workflow_repo="$DEFAULT_WORKFLOW_REPO"
+  if [[ -f "$conf_file" ]]; then
+    local saved
+    saved="$(grep '^WORKFLOW_REPO=' "$conf_file" | cut -d'=' -f2)"
+    [[ -n "$saved" ]] && workflow_repo="$saved"
+  fi
+
+  # Build doctor checks using the configured workflow repo
+  DOCTOR_CHECKS=(
+    "review.yml|uses: ${workflow_repo}/.github/workflows/pr-review.yml@main|calls pr-review.yml@main"
+    "review.yml|dispatch-fix:|dispatch-fix job present"
+    "review.yml|workflow_dispatch|workflow_dispatch trigger present"
+    "review.yml|domiva-agent-lab#5|workflow_run disabled with issue reference"
+    "ci-auto-fix.yml|uses: ${workflow_repo}/.github/workflows/pr-fix.yml@main|calls pr-fix.yml@main"
+    "ci-auto-fix.yml|workflow_dispatch|workflow_dispatch trigger present"
+    "ci-auto-fix.yml|domiva-agent-lab#5|workflow_run disabled with issue reference"
+  )
 
   local issues=0
 

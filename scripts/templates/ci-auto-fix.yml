@@ -75,7 +75,7 @@ jobs:
   fix:
     needs: resolve
     if: needs.resolve.outputs.pr_number != ''
-    uses: Domiva-Life/domiva-workflows/.github/workflows/pr-fix.yml@main
+    uses: {{WORKFLOW_REPO}}/.github/workflows/pr-fix.yml@main
     with:
       pr_number: ${{ needs.resolve.outputs.pr_number }}
       head_branch: ${{ needs.resolve.outputs.head_branch }}

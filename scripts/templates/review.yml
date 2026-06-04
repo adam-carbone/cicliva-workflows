@@ -74,7 +74,7 @@ jobs:
   review:
     needs: resolve
     if: needs.resolve.outputs.pr_number != ''
-    uses: Domiva-Life/domiva-workflows/.github/workflows/pr-review.yml@main
+    uses: {{WORKFLOW_REPO}}/.github/workflows/pr-review.yml@main
     with:
       pr_number: ${{ needs.resolve.outputs.pr_number }}
       repo: ${{ github.repository }}
