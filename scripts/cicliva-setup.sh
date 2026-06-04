@@ -92,25 +92,35 @@ validate_token() {
 
 ensure_org() {
   if [[ -f "$ORG_FILE" ]]; then
-    CUSTOMER_ORG=$(cat "$ORG_FILE")
+    CUSTOMER_ORG=$(head -1 "$ORG_FILE")
+    IS_PERSONAL=$(grep '^IS_PERSONAL=' "$ORG_FILE" 2>/dev/null | cut -d'=' -f2 || echo "false")
     return
   fi
 
-  local orgs
+  local personal_login orgs
+  personal_login=$(gh api /user --jq '.login' 2>/dev/null || echo "")
   orgs=$(gh api /user/orgs --jq '.[].login' 2>/dev/null || echo "")
 
   echo ""
-  echo "Which GitHub organization should cicliva-workflows be installed in?"
+  echo "Which account should cicliva-workflows be installed in?"
+  echo "    $personal_login (personal)"
   if [[ -n "$orgs" ]]; then
-    echo "Your organizations:"
-    echo "$orgs" | while read -r org; do echo "    $org"; done
+    echo "$orgs" | while read -r org; do echo "    $org (org)"; done
   fi
   echo ""
-  printf "Organization: "
+  printf "Account: "
   read -r CUSTOMER_ORG
 
-  [[ -n "$CUSTOMER_ORG" ]] || die "Organization cannot be empty."
-  echo "$CUSTOMER_ORG" > "$ORG_FILE"
+  [[ -n "$CUSTOMER_ORG" ]] || die "Account cannot be empty."
+
+  # Detect if personal account
+  if [[ "$CUSTOMER_ORG" == "$personal_login" ]]; then
+    IS_PERSONAL="true"
+  else
+    IS_PERSONAL="false"
+  fi
+
+  printf '%s\nIS_PERSONAL=%s\n' "$CUSTOMER_ORG" "$IS_PERSONAL" > "$ORG_FILE"
 }
 
 # ── mirror ────────────────────────────────────────────────────────────────────
@@ -119,11 +129,19 @@ mirror_repo() {
   local target_repo="$CUSTOMER_ORG/cicliva-workflows"
 
   info "Creating $target_repo (private)..."
-  gh api "orgs/$CUSTOMER_ORG/repos" --method POST \
-    --field name=cicliva-workflows \
-    --field private=true \
-    --field description="Cicliva agent workflow platform — private workflow library" \
-    2>/dev/null || info "Repository already exists"
+  if [[ "$IS_PERSONAL" == "true" ]]; then
+    gh api "user/repos" --method POST \
+      --field name=cicliva-workflows \
+      --field private=true \
+      --field description="Cicliva agent workflow platform — private workflow library" \
+      2>/dev/null || info "Repository already exists"
+  else
+    gh api "orgs/$CUSTOMER_ORG/repos" --method POST \
+      --field name=cicliva-workflows \
+      --field private=true \
+      --field description="Cicliva agent workflow platform — private workflow library" \
+      2>/dev/null || info "Repository already exists"
+  fi
 
   info "Mirroring $CICLIVA_SOURCE → $target_repo..."
 
@@ -205,6 +223,7 @@ cmd_update() {
 
 TOKEN=""
 CUSTOMER_ORG=""
+IS_PERSONAL="false"
 
 case "${1:-}" in
   --update)   cmd_update ;;
