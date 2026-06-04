@@ -6,7 +6,7 @@ name: Publish Public Scripts
 # Required secrets (set in cicliva org or cicliva-workflows repo):
 #   CICLIVA_GCS_SA_KEY        — JSON service account key with Storage Object Admin
 #                               on the scripts bucket
-#   CICLIVA_SCRIPTS_BUCKET    — bucket name only, e.g. cicliva-scripts
+#   CICLIVA_SCRIPTS_BUCKET    — bucket name only, e.g. cicliva-public-scripts
 
 on:
   push:

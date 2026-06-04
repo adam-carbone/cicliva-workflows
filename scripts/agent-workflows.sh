@@ -390,7 +390,7 @@ cmd_install() {
   echo ""
   echo "Done. Create a GitHub issue with '@claude' in the body to test the loop."
   echo "Run this any time to check health:"
-  echo "  bash <(curl -fsSL https://storage.googleapis.com/cicliva-scripts/agent-workflows.sh) doctor"
+  echo "  bash <(curl -fsSL https://storage.googleapis.com/cicliva-public-scripts/agent-workflows.sh) doctor"
 }
 
 # ─── doctor ───────────────────────────────────────────────────────────────────

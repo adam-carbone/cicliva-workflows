@@ -15,7 +15,7 @@ SHA_FILE="$CICLIVA_DIR/repo-sha"
 ORG_FILE="$CICLIVA_DIR/org"
 CICLIVA_SOURCE="cicliva/cicliva-workflows"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GCS_BASE="https://storage.googleapis.com/cicliva-scripts"
+GCS_BASE="https://storage.googleapis.com/cicliva-public-scripts"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
