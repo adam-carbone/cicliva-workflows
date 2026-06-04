@@ -57,6 +57,9 @@ ensure_token() {
   fi
 
   echo ""
+  echo "A Cicliva access token is required to continue."
+  echo "If you don't have one, contact adam@cicliva.com to get access."
+  echo ""
   echo "Enter your Cicliva access token:"
   read -rs TOKEN
   echo ""
