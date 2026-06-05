@@ -14,6 +14,7 @@ on:
     paths:
       - scripts/cicliva-setup.sh
       - scripts/agent-workflows.sh
+      - scripts/templates/**
 
 jobs:
   publish:
@@ -38,8 +39,10 @@ jobs:
         env:
           BUCKET: ${{ secrets.CICLIVA_SCRIPTS_BUCKET }}
         run: |
-          gsutil cp scripts/cicliva-setup.sh   gs://$BUCKET/cicliva-setup.sh
-          gsutil cp scripts/agent-workflows.sh  gs://$BUCKET/agent-workflows.sh
+          gsutil -h "Cache-Control:no-cache" cp scripts/cicliva-setup.sh   gs://$BUCKET/cicliva-setup.sh
+          gsutil -h "Cache-Control:no-cache" cp scripts/agent-workflows.sh  gs://$BUCKET/agent-workflows.sh
+          gsutil -h "Cache-Control:no-cache" cp -r scripts/templates/        gs://$BUCKET/templates/
           echo "Published:"
           echo "  https://storage.googleapis.com/$BUCKET/cicliva-setup.sh"
           echo "  https://storage.googleapis.com/$BUCKET/agent-workflows.sh"
+          echo "  https://storage.googleapis.com/$BUCKET/templates/"

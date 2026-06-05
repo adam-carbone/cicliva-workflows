@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # agent-workflows.sh — install and maintain agent workflow files in a repo
+# When run via curl|bash or bash <(...), templates are fetched from GCS.
 #
 # Usage:
 #   agent-workflows.sh [install] [--stack STACK] [--repo OWNER/NAME] [--workflow-repo OWNER/NAME]
@@ -21,6 +22,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GCS_BASE="https://storage.googleapis.com/cicliva-public-scripts"
 TEMPLATES_DIR="$SCRIPT_DIR/templates"
 AGENT_WORKFLOWS_CONF=".github/.agent-workflows"
 DEFAULT_WORKFLOW_REPO="Domiva-Life/domiva-workflows"
@@ -139,17 +141,23 @@ apply_template() {
   local template_file="$1"
   local stack="$2"
   local workflow_repo="${3:-$DEFAULT_WORKFLOW_REPO}"
+  apply_template_content "$(cat "$template_file")" "$stack" "$workflow_repo"
+}
+
+apply_template_content() {
+  local content="$1"
+  local stack="$2"
+  local workflow_repo="${3:-$DEFAULT_WORKFLOW_REPO}"
   local build_cmd test_cmd
   build_cmd="$(build_command_for "$stack")"
   test_cmd="$(test_command_for "$stack")"
 
-  sed \
+  echo "$content" | sed \
     -e "s|{{STACK}}|$stack|g" \
     -e "s|{{BUILD_COMMAND}}|$build_cmd|g" \
     -e "s|{{TEST_COMMAND}}|$test_cmd|g" \
     -e "s|{{WORKFLOW_REPO}}|$workflow_repo|g" \
-    -e "s|{{REPO_INSTRUCTIONS}}|Follow the project conventions and any CLAUDE.md instructions.|g" \
-    "$template_file"
+    -e "s|{{REPO_INSTRUCTIONS}}|Follow the project conventions and any CLAUDE.md instructions.|g"
 }
 
 open_url() {
@@ -398,14 +406,20 @@ cmd_install() {
 
   for file in "${WORKFLOW_FILES[@]}"; do
     local dest="$workflows_dir/$file"
-    local template="$TEMPLATES_DIR/$file"
 
-    [[ -f "$template" ]] || die "Template not found: $template"
+    local template_content
+    if [[ -f "$TEMPLATES_DIR/$file" ]]; then
+      template_content=$(cat "$TEMPLATES_DIR/$file")
+    else
+      # Running via curl-to-bash — no local templates, fetch from GCS
+      template_content=$(curl -fsSL "$GCS_BASE/templates/$file") \
+        || die "Could not fetch template: $file"
+    fi
 
     if [[ -f "$dest" ]]; then
       echo "  Skipping $file (already exists — run 'doctor --cure' to update)"
     else
-      apply_template "$template" "$stack" "$workflow_repo" > "$dest"
+      apply_template_content "$template_content" "$stack" "$workflow_repo" > "$dest"
       echo "  Created $file"
     fi
   done
