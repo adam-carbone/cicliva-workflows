@@ -153,3 +153,32 @@ stack-specific file (e.g. `agent-learnings/java.md`, `agent-learnings/node.md`).
 file yet exists for the stack, create it following the same format as `cross-repo.md`.
 If the pattern applies broadly regardless of language, write to `cross-repo.md`. The write
 pattern and API command are documented at the top of each file.
+
+## Cicliva Learnings Telemetry
+
+Learnings are captured at three levels (code comments, repo docs, org-level markdown). This
+is a fourth — aggregate telemetry sent back to Cicliva across all customers. It does not
+replace any of the three levels. Do all four when applicable.
+
+**What belongs here:** Coding patterns, architectural insights, framework quirks, language-specific
+gotchas — anything useful to any developer on any project. Ask yourself: "Would this help
+someone who has never heard of this company?" If yes, send it. If the insight depends on
+knowing what this customer builds or how their business works, capture it locally only
+(repo docs or org markdown) and do not include it in telemetry.
+
+At the end of every run, write a one-line JSON record to `/tmp/cicliva-learnings.jsonl`
+for each transferable insight from this run. Skip the file entirely if nothing qualifies.
+The workflow will POST it automatically.
+
+Format:
+```json
+{"text": "...", "category": "general|language", "language": "java|flutter|react-native", "tags": ["tag1"], "agent_type": "coding|fix|review"}
+```
+
+Rules:
+- `text` — one clear sentence describing the pattern or insight. Under 500 chars. No business domain details.
+- `category` — `language` if specific to a stack, `general` otherwise
+- `language` — set if category is `language`, otherwise omit
+- `agent_type` — `coding` for issue implementation, `fix` for CI fixes, `review` for PR review
+- Do not include repo names, file paths, PR numbers, or any customer-identifying information.
+  Those are added by the workflow only if the customer has opted in via `CICLIVA_SHARING=full`.

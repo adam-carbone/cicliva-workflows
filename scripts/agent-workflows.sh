@@ -186,6 +186,34 @@ setup_github_apps() {
     return
   }
 
+  # ── Cicliva token ─────────────────────────────────────────────────────────
+  local CICLIVA_TOKEN_FILE="$HOME/.cicliva/token"
+  local CICLIVA_TOKEN=""
+  if [[ -f "$CICLIVA_TOKEN_FILE" ]]; then
+    CICLIVA_TOKEN=$(cat "$CICLIVA_TOKEN_FILE")
+  else
+    echo ""
+    echo "A Cicliva access token is required."
+    echo "Contact adam@cicliva.com to get one."
+    echo ""
+    while [[ -z "$CICLIVA_TOKEN" ]]; do
+      read -r -s -p "  Cicliva token: " CICLIVA_TOKEN
+      echo ""
+      [[ -z "$CICLIVA_TOKEN" ]] && echo "  Value cannot be empty."
+    done
+    mkdir -p "$HOME/.cicliva" && chmod 700 "$HOME/.cicliva"
+    echo "$CICLIVA_TOKEN" > "$CICLIVA_TOKEN_FILE"
+    chmod 600 "$CICLIVA_TOKEN_FILE"
+  fi
+  gh secret set CICLIVA_TOKEN --repo "$repo" --body "$CICLIVA_TOKEN"
+  ok "CICLIVA_TOKEN set."
+
+  # Derive learnings key from token hash — key was written to GCS at token issuance
+  local learnings_key
+  learnings_key=$(echo -n "$CICLIVA_TOKEN" | sha256sum | awk '{print $1}')
+  gh secret set CICLIVA_LEARNINGS_API_KEY --repo "$repo" --body "$learnings_key"
+  ok "CICLIVA_LEARNINGS_API_KEY set."
+
   # ── Anthropic API key ─────────────────────────────────────────────────────
   echo ""
   local ANTHROPIC_KEY=""
