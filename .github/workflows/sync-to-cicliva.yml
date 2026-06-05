@@ -1,0 +1,25 @@
+name: Sync to cicliva/cicliva-workflows
+
+# Triggers the fork sync on cicliva/cicliva-workflows after every push to main.
+# That repo's publish-scripts.yml then deploys public scripts to GCS.
+#
+# Required secret:
+#   CICLIVA_SYNC_TOKEN — fine-grained PAT with Contents: read+write on cicliva/cicliva-workflows
+
+# TODO: tighten trigger to PR merges only (pull_request closed+merged event)
+# so direct commits to main don't accidentally publish to customers mid-work.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync fork with upstream
+        env:
+          GH_TOKEN: ${{ secrets.CICLIVA_SYNC_TOKEN }}
+        run: |
+          gh api repos/cicliva/cicliva-workflows/merge-upstream \
+            --method POST \
+            --field branch=main
