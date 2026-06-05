@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+# When run via curl|bash, stdin is the pipe. Reconnect stdin to the terminal
+# so interactive prompts (read) can receive keyboard input.
+exec < /dev/tty
+
 CICLIVA_DIR="$HOME/.cicliva"
 TOKEN_FILE="$CICLIVA_DIR/token"
 SHA_FILE="$CICLIVA_DIR/repo-sha"
@@ -62,7 +66,7 @@ ensure_token() {
   echo "If you don't have one, contact adam@cicliva.com to get access."
   echo ""
   echo "Enter your Cicliva access token:"
-  read -rs TOKEN < /dev/tty
+  read -rs TOKEN
   echo ""
 
   [[ -n "$TOKEN" ]] || die "Token cannot be empty."
@@ -110,7 +114,7 @@ ensure_org() {
   fi
   echo ""
   printf "Account: "
-  read -r CUSTOMER_ORG < /dev/tty
+  read -r CUSTOMER_ORG
 
   [[ -n "$CUSTOMER_ORG" ]] || die "Account cannot be empty."
 
