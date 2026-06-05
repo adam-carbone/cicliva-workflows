@@ -183,6 +183,61 @@ Guidance body only (no inline text) — all lines treated as guidance.
 
 ---
 
+## Cicliva Platform
+
+This repo doubles as the source for the Cicliva agent platform — a productized version of the Domiva agent pipeline for external customers.
+
+### Repository Roles
+
+| Repo | Purpose |
+|---|---|
+| `Domiva-Life/domiva-workflows` | Development — all changes made here |
+| `cicliva/cicliva-workflows` | Distribution — fork synced automatically on every push to main; customers mirror from here |
+
+### Publish Pipeline
+
+```
+commit to Domiva-Life/domiva-workflows (main)
+  → sync-to-cicliva.yml syncs the fork via merge-upstream
+    → publish-scripts.yml triggers on cicliva/cicliva-workflows
+      → scripts land in gs://cicliva-public-scripts/
+        → available to all customers immediately
+```
+
+> **Note:** `sync-to-cicliva.yml` currently triggers on every push to main. TODO: tighten to PR merges only before onboarding real customers.
+
+### Customer-Facing Scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/cicliva-setup.sh` | Beta customer setup — validates token, mirrors `cicliva-workflows` into their org, runs install |
+| `scripts/agent-workflows.sh` | All customers — copies workflow files, sets secrets, wires learnings |
+
+Scripts publish automatically when changed. To publish manually during development:
+```bash
+gcloud storage cp scripts/cicliva-setup.sh gs://cicliva-public-scripts/cicliva-setup.sh
+gcloud storage cp scripts/agent-workflows.sh gs://cicliva-public-scripts/agent-workflows.sh
+```
+
+### Learnings Pipeline
+
+Agent runs write learnings to `/tmp/cicliva-learnings.jsonl`. A post-step in the agent workflow POSTs records to the Cicliva learnings API (`/ingest`), which stores them in `gs://cicliva-learnings/` as daily JSONL files.
+
+Synthesis pipeline (planned): raw records → per-customer distillation → cross-customer synthesis → `agent-learnings/*.md` updated → agents get smarter on next run.
+
+See `domiva-product/infrastructure/cicliva-learnings-system.md` for full design.
+
+### Secrets
+
+| Secret | Repo | Purpose |
+|---|---|---|
+| `CICLIVA_SYNC_TOKEN` | `Domiva-Life/domiva-workflows` | Classic PAT (`repo` + `workflow` scope) — triggers fork sync |
+| `CICLIVA_WIF_PROVIDER` | `cicliva/cicliva-workflows` | Workload Identity Federation provider for GCS publish |
+| `CICLIVA_WIF_SA` | `cicliva/cicliva-workflows` | WIF service account for GCS publish |
+| `CICLIVA_SCRIPTS_BUCKET` | `cicliva/cicliva-workflows` | GCS bucket name (`cicliva-public-scripts`) |
+
+---
+
 ## Adding to a New Repo
 
 Run the install script from the root of your repo:
