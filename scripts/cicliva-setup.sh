@@ -199,6 +199,7 @@ check_for_updates() {
 # breaks SCRIPT_DIR resolution and template lookup — download to a real path.
 run_agent_workflows() {
   if [[ -f "$SCRIPT_DIR/agent-workflows.sh" ]]; then
+    # Local clone: stdin is normal, run directly.
     bash "$SCRIPT_DIR/agent-workflows.sh" "$@"
   else
     local tmpdir
@@ -211,7 +212,9 @@ run_agent_workflows() {
       curl -fsSL "$GCS_BASE/templates/$tpl" -o "$tmpdir/templates/$tpl"
     done
 
-    bash "$tmpdir/agent-workflows.sh" "$@"
+    # Redirect child's stdin to fd 3 (/dev/tty) so agent-workflows.sh read
+    # calls get the terminal — the inherited fd 0 is the exhausted curl pipe.
+    bash "$tmpdir/agent-workflows.sh" "$@" <&3
   fi
 }
 
