@@ -15,7 +15,7 @@ jobs:
     # NOTE: Do NOT filter out bot comments here. The Issue Orchestrator triggers this agent
     # by posting '@claude' on an issue. Bot access is controlled by allowed_bots in the
     # reusable workflow. See cicliva-workflows/claude-agent.yml.
-    if: |
+    if: >-
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
@@ -29,3 +29,4 @@ jobs:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
       domiva_agent_app_id: ${{ secrets.AGENT_APP_ID }}
       domiva_agent_private_key: ${{ secrets.AGENT_PRIVATE_KEY }}
+      cicliva_learnings_api_key: ${{ secrets.CICLIVA_LEARNINGS_API_KEY }}
