@@ -62,7 +62,7 @@ ensure_token() {
   echo "If you don't have one, contact adam@cicliva.com to get access."
   echo ""
   echo "Enter your Cicliva access token:"
-  read -rs TOKEN
+  read -rs TOKEN < /dev/tty
   echo ""
 
   [[ -n "$TOKEN" ]] || die "Token cannot be empty."
@@ -72,9 +72,9 @@ ensure_token() {
 
 validate_token() {
   local http_code
-  http_code=$(curl -sf -o /dev/null -w "%{http_code}" \
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" \
     -H "Authorization: token $TOKEN" \
-    "https://api.github.com/repos/$CICLIVA_SOURCE" 2>/dev/null || echo "000")
+    "https://api.github.com/repos/$CICLIVA_SOURCE" 2>/dev/null)
 
   if [[ "$http_code" == "200" ]]; then
     ok "Token valid"
@@ -110,7 +110,7 @@ ensure_org() {
   fi
   echo ""
   printf "Account: "
-  read -r CUSTOMER_ORG
+  read -r CUSTOMER_ORG < /dev/tty
 
   [[ -n "$CUSTOMER_ORG" ]] || die "Account cannot be empty."
 
