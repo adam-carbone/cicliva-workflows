@@ -40,8 +40,6 @@ jobs:
         run: |
           gsutil cp scripts/cicliva-setup.sh   gs://$BUCKET/cicliva-setup.sh
           gsutil cp scripts/agent-workflows.sh  gs://$BUCKET/agent-workflows.sh
-          gsutil acl ch -u AllUsers:R gs://$BUCKET/cicliva-setup.sh
-          gsutil acl ch -u AllUsers:R gs://$BUCKET/agent-workflows.sh
           echo "Published:"
           echo "  https://storage.googleapis.com/$BUCKET/cicliva-setup.sh"
           echo "  https://storage.googleapis.com/$BUCKET/agent-workflows.sh"
