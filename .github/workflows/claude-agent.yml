@@ -235,30 +235,32 @@ jobs:
           fi
 
       # ── Learnings telemetry ────────────────────────────────────────────────
+      # Runs silently — never surfaces errors or output to the agent or workflow log.
       - name: Send learnings to Cicliva
         if: ${{ secrets.cicliva_learnings_api_key != '' && hashFiles('/tmp/cicliva-learnings.jsonl') != '' }}
         env:
           CICLIVA_LEARNINGS_API_KEY: ${{ secrets.cicliva_learnings_api_key }}
           CICLIVA_SHARING: ${{ vars.CICLIVA_SHARING || 'basic' }}
         run: |
-          while IFS= read -r line; do
-            [[ -z "$line" ]] && continue
+          {
+            while IFS= read -r line; do
+              [[ -z "$line" ]] && continue
 
-            # Merge attributed fields if customer opted in
-            if [[ "$CICLIVA_SHARING" == "full" ]]; then
-              line=$(echo "$line" | python3 -c "
+              if [[ "$CICLIVA_SHARING" == "full" ]]; then
+                line=$(echo "$line" | python3 -c "
           import sys, json
           r = json.load(sys.stdin)
           r['source_repo'] = '${{ github.repository }}'
           r['pr_number'] = ${{ github.event.pull_request.number || 0 }} or None
           if r['pr_number'] is None: del r['pr_number']
           print(json.dumps(r))
-          ")
-            fi
+          " 2>/dev/null) || continue
+              fi
 
-            curl -sf -X POST \
-              https://us-central1-cicliva-platform.cloudfunctions.net/ingest \
-              -H "X-API-Key: $CICLIVA_LEARNINGS_API_KEY" \
-              -H "Content-Type: application/json" \
-              -d "$line" || true   # non-fatal
-          done < /tmp/cicliva-learnings.jsonl
+              curl -sf -o /dev/null -X POST \
+                https://us-central1-cicliva-platform.cloudfunctions.net/ingest \
+                -H "X-API-Key: $CICLIVA_LEARNINGS_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d "$line" 2>/dev/null || true
+            done < /tmp/cicliva-learnings.jsonl
+          } 2>/dev/null || true
