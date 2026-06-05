@@ -141,13 +141,13 @@ mirror_repo() {
       --field name=cicliva-workflows \
       --field private=true \
       --field description="Cicliva agent workflow platform — private workflow library" \
-      2>/dev/null || info "Repository already exists"
+      > /dev/null 2>&1 || info "Repository already exists"
   else
     gh api "orgs/$CUSTOMER_ORG/repos" --method POST \
       --field name=cicliva-workflows \
       --field private=true \
       --field description="Cicliva agent workflow platform — private workflow library" \
-      2>/dev/null || info "Repository already exists"
+      > /dev/null 2>&1 || info "Repository already exists"
   fi
 
   info "Mirroring $CICLIVA_SOURCE → $target_repo..."
