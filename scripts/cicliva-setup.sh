@@ -191,13 +191,25 @@ check_for_updates() {
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 # Run agent-workflows.sh — use the local copy if we're running from a clone,
-# otherwise fetch from GCS. Customers running via curl-to-bash won't have a
-# local copy; they should always be able to reach the public GCS URL.
+# otherwise download to a temp dir with its templates so SCRIPT_DIR resolves
+# correctly and templates are available on disk.
+# bash <(...) process substitution sets BASH_SOURCE[0] to /dev/fd/NN, which
+# breaks SCRIPT_DIR resolution and template lookup — download to a real path.
 run_agent_workflows() {
   if [[ -f "$SCRIPT_DIR/agent-workflows.sh" ]]; then
     bash "$SCRIPT_DIR/agent-workflows.sh" "$@"
   else
-    bash <(curl -fsSL "$GCS_BASE/agent-workflows.sh") "$@"
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap "rm -rf '$tmpdir'" EXIT
+
+    curl -fsSL "$GCS_BASE/agent-workflows.sh" -o "$tmpdir/agent-workflows.sh"
+    mkdir -p "$tmpdir/templates"
+    for tpl in claude.yml review.yml ci-auto-fix.yml; do
+      curl -fsSL "$GCS_BASE/templates/$tpl" -o "$tmpdir/templates/$tpl"
+    done
+
+    bash "$tmpdir/agent-workflows.sh" "$@"
   fi
 }
 
