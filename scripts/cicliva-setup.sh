@@ -9,9 +9,11 @@
 
 set -euo pipefail
 
-# When run via curl|bash, stdin is the pipe. Reconnect stdin to the terminal
-# so interactive prompts (read) can receive keyboard input.
-exec < /dev/tty
+# When run via curl|bash, stdin (fd 0) is the pipe bash reads the script from.
+# Replacing it with exec < /dev/tty would break script reading.
+# Instead, open /dev/tty as fd 3 so interactive reads can use <&3 without
+# touching fd 0.
+exec 3</dev/tty || exec 3<&0
 
 CICLIVA_DIR="$HOME/.cicliva"
 TOKEN_FILE="$CICLIVA_DIR/token"
@@ -66,7 +68,7 @@ ensure_token() {
   echo "If you don't have one, contact adam@cicliva.com to get access."
   echo ""
   echo "Enter your Cicliva access token:"
-  read -rs TOKEN
+  read -rs TOKEN <&3
   echo ""
 
   [[ -n "$TOKEN" ]] || die "Token cannot be empty."
@@ -114,7 +116,7 @@ ensure_org() {
   fi
   echo ""
   printf "Account: "
-  read -r CUSTOMER_ORG
+  read -r CUSTOMER_ORG <&3
 
   [[ -n "$CUSTOMER_ORG" ]] || die "Account cannot be empty."
 
