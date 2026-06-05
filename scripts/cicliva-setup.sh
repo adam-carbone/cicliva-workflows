@@ -13,10 +13,8 @@ CICLIVA_DIR="$HOME/.cicliva"
 TOKEN_FILE="$CICLIVA_DIR/token"
 SHA_FILE="$CICLIVA_DIR/repo-sha"
 ORG_FILE="$CICLIVA_DIR/org"
-LEARNINGS_KEY_FILE="$CICLIVA_DIR/learnings-api-key"
 CICLIVA_SOURCE="cicliva/cicliva-workflows"
-LEARNINGS_API="https://us-central1-cicliva-platform.cloudfunctions.net"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 GCS_BASE="https://storage.googleapis.com/cicliva-public-scripts"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -199,25 +197,6 @@ run_agent_workflows() {
   fi
 }
 
-# ── learnings key ─────────────────────────────────────────────────────────────
-
-issue_learnings_key() {
-  local response api_key
-  response=$(curl -sf -X POST "$LEARNINGS_API/issue-key" \
-    -H "X-GitHub-Token: $TOKEN" 2>/dev/null || echo "")
-
-  api_key=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('api_key',''))" 2>/dev/null || echo "")
-
-  if [[ -z "$api_key" ]]; then
-    info "Could not issue learnings key — skipping (non-fatal)"
-    return
-  fi
-
-  echo "$api_key" > "$LEARNINGS_KEY_FILE"
-  chmod 600 "$LEARNINGS_KEY_FILE"
-  ok "Learnings key issued"
-}
-
 # ── commands ──────────────────────────────────────────────────────────────────
 
 cmd_install() {
@@ -229,8 +208,9 @@ cmd_install() {
   validate_token
   ensure_org
   mirror_repo
-  issue_learnings_key
 
+  # agent-workflows.sh install derives the learnings key from the token hash
+  # and sets it as a repo secret — no separate key issuance step needed.
   echo ""
   run_agent_workflows install \
     --workflow-repo "$CUSTOMER_ORG/cicliva-workflows"
