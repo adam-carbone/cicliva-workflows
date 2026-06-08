@@ -27,11 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PLATFORM_REPO: Domiva-Life/domiva-workflows
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      actions: read
     steps:
       - name: Generate bot token
         id: bot-token
