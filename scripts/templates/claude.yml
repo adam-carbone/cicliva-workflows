@@ -23,6 +23,7 @@ jobs:
     uses: {{WORKFLOW_REPO}}/.github/workflows/claude-agent.yml@main
     with:
       stack: {{STACK}}
+      platform_repo: {{WORKFLOW_REPO}}
       repo_instructions: |
         {{REPO_INSTRUCTIONS}}
     secrets:

@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: ''
+      platform_repo:
+        description: 'Repo containing CLAUDE-shared.md and agent-learnings/ (default: Domiva-Life/domiva-workflows)'
+        required: false
+        type: string
+        default: 'Domiva-Life/domiva-workflows'
     secrets:
       anthropic_api_key:
         required: true
@@ -26,7 +31,7 @@ jobs:
   claude:
     runs-on: ubuntu-latest
     env:
-      PLATFORM_REPO: Domiva-Life/domiva-workflows
+      PLATFORM_REPO: ${{ inputs.platform_repo }}
     steps:
       - name: Generate bot token
         id: bot-token
