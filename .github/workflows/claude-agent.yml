@@ -17,6 +17,11 @@ on:
         required: false
         type: string
         default: 'Domiva-Life/domiva-workflows'
+      extra_stacks:
+        description: 'Additional stacks for agent learnings (space-separated, e.g. "typescript"). Primary stack learnings always loaded.'
+        required: false
+        type: string
+        default: ''
     secrets:
       anthropic_api_key:
         required: true
@@ -35,14 +40,14 @@ jobs:
     steps:
       - name: Generate bot token
         id: bot-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547  # v1
         with:
           app-id: ${{ secrets.domiva_agent_app_id }}
           private-key: ${{ secrets.domiva_agent_private_key }}
           owner: ${{ github.repository_owner }}
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 0
@@ -73,7 +78,7 @@ jobs:
       # ── Stack setup ────────────────────────────────────────────────────────
       - name: Setup Flutter via FVM
         if: inputs.stack == 'flutter'
-        uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        uses: kuhnroyal/flutter-fvm-config-action/setup@c378498f1d1962d33039c3989411093ef8a17b2c  # v3
         with:
           path: .fvmrc
 
@@ -83,20 +88,20 @@ jobs:
 
       - name: Set up Java 21
         if: inputs.stack == 'java'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9  # v4
         with:
           java-version: '21'
           distribution: 'temurin'
 
       - name: Set up Gradle
         if: inputs.stack == 'java'
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@d9c87d481d55275bb5441eef3fe0e46805f9ef70  # v3
         with:
           gradle-version: '8.7'
 
       - name: Set up Node
         if: inputs.stack == 'react-native'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -119,8 +124,10 @@ jobs:
         run: |
           gh api repos/$PLATFORM_REPO/contents/agent-learnings/cross-repo.md \
             --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
-          gh api repos/$PLATFORM_REPO/contents/agent-learnings/${{ inputs.stack }}.md \
-            --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
+          for STACK in ${{ inputs.stack }} ${{ inputs.extra_stacks }}; do
+            gh api repos/$PLATFORM_REPO/contents/agent-learnings/${STACK}.md \
+              --jq '.content' | base64 -d >> CLAUDE.md 2>/dev/null || true
+          done
 
       # ── Safety checks ──────────────────────────────────────────────────────
       - name: Check Anthropic API credit
@@ -156,7 +163,7 @@ jobs:
               echo "allowlist=${BASE},Bash(gradle build),Bash(gradle test),Bash(gradle compileJava)" >> $GITHUB_OUTPUT
               ;;
             react-native)
-              echo "allowlist=${BASE},Bash(npm install),Bash(npx jest:*),Bash(npx react-native:*)" >> $GITHUB_OUTPUT
+              echo "allowlist=${BASE},Bash(npm install),Bash(npx expo install:*),Bash(npx jest:*),Bash(npx react-native:*)" >> $GITHUB_OUTPUT
               ;;
             *)
               echo "allowlist=${BASE}" >> $GITHUB_OUTPUT
@@ -165,7 +172,7 @@ jobs:
 
       # ── Agent ──────────────────────────────────────────────────────────────
       - name: Run Claude Code
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@11ba60486e4aec9ddfeafcf4bb3f00b028ac2c16  # v1
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           github_token: ${{ steps.bot-token.outputs.token }}
