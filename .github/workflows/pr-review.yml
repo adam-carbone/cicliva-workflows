@@ -345,8 +345,13 @@ jobs:
         run: |
           gh label create "ready to merge" --color "0E8A16" --repo ${{ inputs.repo }} 2>/dev/null || true
 
-          HAS_BLOCKING=$(gh api repos/${{ inputs.repo }}/pulls/${{ inputs.pr_number }}/reviews \
-            --jq '[.[] | select(.state == "CHANGES_REQUESTED")] | length' 2>/dev/null || echo "1")
+          # Use reviewDecision (GitHub's computed effective state) rather than counting raw
+          # CHANGES_REQUESTED reviews. The raw count breaks after a fix+re-review cycle:
+          # the old CHANGES_REQUESTED review remains in the list even after a new APPROVE is
+          # submitted, and GitHub can dismiss the APPROVE if a commit is pushed mid-cycle.
+          # reviewDecision accounts for dismissed/superseded reviews and multiple reviewers correctly.
+          REVIEW_DECISION=$(gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} \
+            --json reviewDecision --jq '.reviewDecision' 2>/dev/null || echo "UNKNOWN")
 
           # Also verify Build + Test is green — PR Review can run before CI completes
           BRANCH=$(gh pr view ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --json headRefName --jq '.headRefName')
@@ -354,9 +359,11 @@ jobs:
             --jq '[.workflow_runs[] | select(.name == "Build + Test")] | sort_by(.created_at) | reverse | .[0].conclusion' \
             2>/dev/null || echo "unknown")
 
-          if [ "$HAS_BLOCKING" = "0" ] && [ "$BUILD_CONCLUSION" = "success" ]; then
+          if [ "$REVIEW_DECISION" = "APPROVED" ] && [ "$BUILD_CONCLUSION" = "success" ]; then
+            HAS_BLOCKING=0
             gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --add-label "ready to merge"
           else
+            HAS_BLOCKING=1
             gh pr edit ${{ inputs.pr_number }} --repo ${{ inputs.repo }} --remove-label "ready to merge" 2>/dev/null || true
           fi
 
