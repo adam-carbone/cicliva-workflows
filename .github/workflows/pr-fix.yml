@@ -406,7 +406,7 @@ jobs:
 
             5. For each CI failure, read the exact failing line and the test that targets it — do not guess.
             6. Fix ALL CI failures (if any) — run `${{ inputs.test_command }}` to verify, fix any new failures, repeat until clean.
-            7. Fix ALL BLOCKING review findings first. After every blocker is resolved, the test suite passes, and you have committed — use any remaining turns to address nits from the PR review in numbered order. Work through them one at a time. If you run out of turns before finishing all nits, that is fine; note which ones you reached and which remain.
+            7. Fix ALL BLOCKING review findings first. After every blocker is resolved, the test suite passes, and you have committed — if the **Human Feedback** section above is present and contains a nit list, address those nits with your remaining turns, one at a time. If you run out of turns before finishing all nits, note which ones you reached and which remain. If there is no Human Feedback section, stop after fixing blockers — do not autonomously address nits from the review.
             8. For every non-obvious fix, add an inline comment explaining BOTH what the code does AND why — especially for framework workarounds or anything that looks wrong at first glance. Note that it was introduced or changed by the fix agent and why.
             9. **Do NOT commit or push until the full test suite passes.**
             10. Commit and push your fixes to the branch.
